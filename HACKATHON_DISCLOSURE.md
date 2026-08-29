@@ -30,7 +30,18 @@ The work that should be judged for an AI Agent Hackathon submission is the agent
 
 The rules allow existing open-source libraries, developer tools, boilerplate, AI tools, and general-purpose infrastructure when disclosed. The submitted value is the new significant functionality that turns static scanner output into an agentic safety workflow for AI coding agents.
 
+## Submission Requirement Notes
+
+The Devpost submission should include:
+
+- public repository link
+- 3-minute maximum demo video
+- short project description
+- list of major models, frameworks, APIs, tools, and datasets
+- all team member names
+- setup instructions
+- clear disclosure of pre-existing baseline versus hackathon-built agentic workflow
+
 ## Safety Statement
 
 The project does not read `.env` contents, does not print secret values, does not run target project commands, does not install dependencies, does not modify the scanned project, and does not call provider APIs. Optional package registry checks require explicit opt-in.
-

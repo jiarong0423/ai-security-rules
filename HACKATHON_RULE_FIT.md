@@ -4,6 +4,8 @@
 
 This project can fit the AI Agent Hackathon if the submission is positioned as an agent reliability, security, and safety tool, and if the judged work focuses on new agentic functionality built during the hackathon.
 
+The best fit is not a generic scanner category. The best fit is pre-agent safety infrastructure: before an AI agent reads a repo, runs tools, installs dependencies, exports code, or deploys, VibeGate checks whether the repo is safe enough to proceed.
+
 ## Rule Fit Matrix
 
 | Rule area | Fit | Evidence / positioning |
@@ -19,6 +21,26 @@ This project can fit the AI Agent Hackathon if the submission is positioned as a
 | Safe and responsible use | Fits. | The project is defensive, read-only, avoids unauthorized access, does not deploy malware, and does not collect private information. |
 | Infrastructure and cost | Fits. | The local CLI has no required cloud/API cost. Optional LLM or registry checks must be opt-in and should avoid exposing API keys. |
 | Judging | Fits with focused story. | Emphasize technical implementation, meaningful AI-agent safety workflow, practicality, reliability, and impact on AI-assisted development. |
+
+## Judging Criteria Fit
+
+| Criteria | How to present VibeGate |
+|---|---|
+| Technical execution | Working CLI, tests, JSON rule engine, Markdown/JSON evidence output, CI/pre-commit templates. |
+| Agent design | Agent-readable remediation queue with priorities, lanes, required actions, and allowed-action boundaries. |
+| Innovation and creativity | Shifts security from after-code scanning to before-agent execution and before public export. |
+| Impact and usefulness | Solves a real AI-assisted development problem: unsafe repo state before autonomous coding work. |
+| Reliability and safety | Defensive tool, no `.env` reads, no secret values printed, no target project commands executed. |
+| Demo and completeness | Public repo can run locally without paid API or cloud setup. |
+
+## Prize Track Fit
+
+| Track | Fit | Notes |
+|---|---|---|
+| General AI Agent Hackathon | Strong | Security and reliability tooling for coding agents is explicitly in scope. |
+| Quirq - Build It | Conditional | Stronger if the demo shows an observable workspace where gate decisions, queue items, and agent boundaries are visually clear. |
+| Quirq Bounty - Break It | Weak to medium | Could be used to demonstrate how unsafe agent workflows break, but the current project is a defensive builder tool. |
+| Code Registry Challenge | Medium to strong | Strong if presented as protection for repositories before agent execution, public export, or deployment. |
 
 ## Submission Boundary
 
@@ -46,4 +68,3 @@ The project answers this problem:
 > Before an AI agent reads a repo, runs tools, installs packages, exports code, or deploys, who checks that the repo is not poisoned, over-permissioned, leaking private material, or missing evidence?
 
 VibeGate is that check.
-

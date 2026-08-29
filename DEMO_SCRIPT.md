@@ -4,6 +4,8 @@
 
 Show that VibeGate catches risks before AI agents create security damage.
 
+Target length: 3 minutes maximum.
+
 ## Story
 
 A team wants to use an AI coding agent to work on a repository. Before opening the repo to the agent, they run VibeGate. The tool blocks unsafe stages and produces an agent-readable remediation queue.
@@ -47,6 +49,28 @@ VibeGate is not trying to replace SAST. It catches the stage mistakes that happe
 
 The important part is that the output is safe for an AI coding agent to consume. It contains priorities, required actions, and agent boundaries, but it does not include secret values.
 
+## 3-Minute Video Structure
+
+0:00-0:20 Problem:
+
+AI coding agents can read repo rules, start tools, install packages, and package code faster than humans review the security boundary.
+
+0:20-1:15 Working prototype:
+
+Run `agent-review` and show `agentic_security_review_queue.md`.
+
+1:15-2:10 Agentic behavior:
+
+Explain that the queue is built for coding agents: each item has priority, lane, evidence, required action, and an allowed action boundary.
+
+2:10-2:40 Safety:
+
+Show the safety guarantees: no `.env` reads, no project command execution, no secret values printed, no provider API calls.
+
+2:40-3:00 Impact:
+
+This gives teams a pre-development gate before agent execution, dependency installation, public export, or deployment.
+
 ## Video Checklist
 
 - Show the command.
@@ -54,4 +78,4 @@ The important part is that the output is safe for an AI coding agent to consume.
 - Show at least one P0/P1 blocking decision.
 - Show that `.env` contents are never read.
 - Explain how this complements SAST, gitleaks/trufflehog, and package reputation review.
-
+- Name the tools used: Python, Git, JSON rules, Markdown/JSON reports, optional SAST/secret/dependency evidence tools.
