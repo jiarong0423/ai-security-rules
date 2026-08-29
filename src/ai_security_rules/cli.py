@@ -22,6 +22,9 @@ import os
 import re
 import subprocess
 import sys
+import urllib.error
+import urllib.parse
+import urllib.request
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Iterable
@@ -66,6 +69,7 @@ EXCLUDED_FILE_SUFFIXES = {
 
 MAX_FILE_BYTES = 2_000_000
 MAX_TEXT_CHARS = 250_000
+REGISTRY_TIMEOUT_SECONDS = 5
 
 AGENT_CONFIG_NAMES = {
     ".mcp.json",
@@ -172,6 +176,15 @@ class Finding:
     recommendation: str
 
 
+@dataclass(frozen=True)
+class TuningRule:
+    category: str
+    file: str | None
+    title_contains: str | None
+    reason: str
+    expires: str | None
+
+
 @dataclass
 class ScanSummary:
     target: str
@@ -204,6 +217,22 @@ class ProjectReport:
     summary: ScanSummary
     profile: ProjectProfile
     findings: list[Finding]
+
+
+@dataclass
+class RegistryPackage:
+    ecosystem: str
+    name: str
+    source_file: str
+
+
+@dataclass
+class RegistryCheck:
+    ecosystem: str
+    package: str
+    source_file: str
+    status: str
+    evidence: str
 
 
 @dataclass
@@ -306,6 +335,83 @@ def read_text_file(path: Path) -> str | None:
         return None
 
 
+def load_tuning_rules(path: Path | None) -> list[TuningRule]:
+    if path is None:
+        return []
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise ValueError(f"Cannot read tuning file: {path}: {exc}") from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Invalid tuning JSON: {path}: {exc}") from exc
+    entries = payload.get("allowed_false_positives", [])
+    if not isinstance(entries, list):
+        raise ValueError("Tuning JSON allowed_false_positives must be an array.")
+    rules: list[TuningRule] = []
+    for index, entry in enumerate(entries, start=1):
+        if not isinstance(entry, dict):
+            raise ValueError(f"Tuning entry #{index} must be an object.")
+        category = entry.get("category")
+        reason = entry.get("reason")
+        if not isinstance(category, str) or not category:
+            raise ValueError(f"Tuning entry #{index} must contain category.")
+        if not isinstance(reason, str) or len(reason.strip()) < 8:
+            raise ValueError(f"Tuning entry #{index} must contain a meaningful reason.")
+        file_value = entry.get("file")
+        title_value = entry.get("title_contains")
+        expires_value = entry.get("expires")
+        if file_value is not None and not isinstance(file_value, str):
+            raise ValueError(f"Tuning entry #{index} file must be a string.")
+        if title_value is not None and not isinstance(title_value, str):
+            raise ValueError(f"Tuning entry #{index} title_contains must be a string.")
+        if expires_value is not None and not isinstance(expires_value, str):
+            raise ValueError(f"Tuning entry #{index} expires must be a string.")
+        if not file_value and not title_value:
+            raise ValueError(f"Tuning entry #{index} must contain file or title_contains.")
+        if expires_value:
+            try:
+                expiry = dt.date.fromisoformat(expires_value)
+            except ValueError as exc:
+                raise ValueError(f"Tuning entry #{index} expires must use YYYY-MM-DD.") from exc
+            if expiry < dt.datetime.now(dt.timezone.utc).date():
+                continue
+        rules.append(
+            TuningRule(
+                category=category,
+                file=file_value,
+                title_contains=title_value,
+                reason=reason.strip(),
+                expires=expires_value,
+            )
+        )
+    return rules
+
+
+def tuning_rule_matches(rule: TuningRule, finding: Finding) -> bool:
+    if finding.severity in {"critical", "high"}:
+        return False
+    if finding.category != rule.category:
+        return False
+    if rule.file and finding.file != rule.file:
+        return False
+    if rule.title_contains and rule.title_contains.lower() not in finding.title.lower():
+        return False
+    return True
+
+
+def apply_tuning_rules(findings: list[Finding], rules: list[TuningRule]) -> tuple[list[Finding], int]:
+    if not rules:
+        return findings, 0
+    kept: list[Finding] = []
+    suppressed = 0
+    for finding in findings:
+        if any(tuning_rule_matches(rule, finding) for rule in rules):
+            suppressed += 1
+            continue
+        kept.append(finding)
+    return kept, suppressed
+
+
 def redact_line(line: str) -> str:
     lowered = line.lower()
     if "private_key" in lowered or "begin " in lowered or "credential" in lowered:
@@ -338,6 +444,27 @@ def is_agent_config(path: Path) -> bool:
 
 def severity_rank(severity: str) -> int:
     return {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}.get(severity, 5)
+
+
+def recompute_summary(summary: ScanSummary, findings: list[Finding]) -> ScanSummary:
+    counts = {severity: 0 for severity in ["critical", "high", "medium", "low", "info"]}
+    for finding in findings:
+        counts[finding.severity] = counts.get(finding.severity, 0) + 1
+    score = sum(counts[severity] * RISK_WEIGHTS[severity] for severity in RISK_WEIGHTS)
+    return ScanSummary(
+        target=summary.target,
+        generated_at=summary.generated_at,
+        files_seen=summary.files_seen,
+        files_scanned=summary.files_scanned,
+        findings_total=len(findings),
+        critical=counts["critical"],
+        high=counts["high"],
+        medium=counts["medium"],
+        low=counts["low"],
+        info=counts["info"],
+        risk_score=score,
+        risk_band=risk_band(score, counts["critical"], counts["high"]),
+    )
 
 
 def risk_band(score: int, critical: int, high: int) -> str:
@@ -464,6 +591,164 @@ def scan_package_risk(path: Path, root: Path, text: str) -> list[Finding]:
                 title="Package runner command present",
                 evidence="Detected npx/bunx/pnpm dlx/yarn dlx usage.",
                 recommendation="Treat package-runner commands as executable code. Validate package identity before agent execution.",
+            )
+        )
+    return findings
+
+
+def parse_python_requirement(line: str) -> str | None:
+    stripped = line.strip()
+    if not stripped or stripped.startswith("#") or stripped.startswith(("-", ".")):
+        return None
+    name = re.split(r"\s*(?:==|>=|<=|~=|!=|>|<|\[|;)\s*", stripped, maxsplit=1)[0].strip()
+    if re.fullmatch(r"[A-Za-z0-9_.-]+", name):
+        return name
+    return None
+
+
+def extract_toml_dependency_entries(text: str) -> list[str]:
+    entries: list[str] = []
+    in_dependencies = False
+    in_optional_dependencies = False
+    for raw_line in text.splitlines():
+        line = raw_line.split("#", 1)[0].strip()
+        if not line:
+            continue
+        if line.startswith("["):
+            in_optional_dependencies = line == "[project.optional-dependencies]"
+            in_dependencies = False
+            continue
+        if line.startswith("dependencies") and "=" in line:
+            in_dependencies = True
+            value = line.split("=", 1)[1]
+        elif in_optional_dependencies and "=" in line:
+            in_dependencies = True
+            value = line.split("=", 1)[1]
+        elif in_dependencies:
+            value = line
+        else:
+            continue
+        entries.extend(match.group(1) for match in re.finditer(r"['\"]([^'\"]+)['\"]", value))
+        if "]" in value:
+            in_dependencies = False
+    return entries
+
+
+def package_names_from_project_file(path: Path, root: Path, text: str) -> list[RegistryPackage]:
+    rel = safe_relative(path, root)
+    packages: list[RegistryPackage] = []
+    if path.name == "requirements.txt":
+        for line in text.splitlines():
+            name = parse_python_requirement(line)
+            if name:
+                packages.append(RegistryPackage(ecosystem="pypi", name=name, source_file=rel))
+    elif path.name == "pyproject.toml":
+        for entry in extract_toml_dependency_entries(text):
+            name = parse_python_requirement(entry)
+            if name and name not in {"python"}:
+                packages.append(RegistryPackage(ecosystem="pypi", name=name, source_file=rel))
+    elif path.name == "package.json":
+        try:
+            payload = json.loads(text)
+        except json.JSONDecodeError:
+            return packages
+        for section in ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"]:
+            values = payload.get(section, {})
+            if isinstance(values, dict):
+                for name in values:
+                    if isinstance(name, str) and re.fullmatch(r"(?:@[A-Za-z0-9_.-]+/)?[A-Za-z0-9_.-]+", name):
+                        packages.append(RegistryPackage(ecosystem="npm", name=name, source_file=rel))
+    return packages
+
+
+def collect_registry_packages(root: Path) -> list[RegistryPackage]:
+    packages: list[RegistryPackage] = []
+    seen: set[tuple[str, str, str]] = set()
+    for path in iter_files(root):
+        if path.name not in {"requirements.txt", "pyproject.toml", "package.json"}:
+            continue
+        text = read_text_file(path)
+        if text is None:
+            continue
+        for package in package_names_from_project_file(path, root, text):
+            marker = (package.ecosystem, package.name.lower(), package.source_file)
+            if marker in seen:
+                continue
+            seen.add(marker)
+            packages.append(package)
+    return packages
+
+
+def registry_url(ecosystem: str, package: str) -> str:
+    if ecosystem == "npm":
+        safe_package = urllib.parse.quote(package, safe="@/")
+        return f"https://registry.npmjs.org/{safe_package}"
+    safe_package = urllib.parse.quote(package, safe="")
+    return f"https://pypi.org/pypi/{safe_package}/json"
+
+
+def check_registry_package(package: RegistryPackage) -> RegistryCheck:
+    url = registry_url(package.ecosystem, package.name)
+    request = urllib.request.Request(url, headers={"User-Agent": "ai-security-rules/0.4"})
+    try:
+        with urllib.request.urlopen(request, timeout=REGISTRY_TIMEOUT_SECONDS) as response:
+            status_code = getattr(response, "status", 0)
+            if 200 <= int(status_code) < 300:
+                return RegistryCheck(
+                    ecosystem=package.ecosystem,
+                    package=package.name,
+                    source_file=package.source_file,
+                    status="found",
+                    evidence=f"{package.ecosystem} registry returned HTTP {status_code}.",
+                )
+            return RegistryCheck(
+                ecosystem=package.ecosystem,
+                package=package.name,
+                source_file=package.source_file,
+                status="unknown",
+                evidence=f"{package.ecosystem} registry returned HTTP {status_code}.",
+            )
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            return RegistryCheck(
+                ecosystem=package.ecosystem,
+                package=package.name,
+                source_file=package.source_file,
+                status="missing",
+                evidence=f"{package.ecosystem} registry returned HTTP 404.",
+            )
+        return RegistryCheck(
+            ecosystem=package.ecosystem,
+            package=package.name,
+            source_file=package.source_file,
+            status="unknown",
+            evidence=f"{package.ecosystem} registry returned HTTP {exc.code}.",
+        )
+    except (OSError, urllib.error.URLError, TimeoutError) as exc:
+        return RegistryCheck(
+            ecosystem=package.ecosystem,
+            package=package.name,
+            source_file=package.source_file,
+            status="unknown",
+            evidence=f"Registry request failed: {exc.__class__.__name__}.",
+        )
+
+
+def registry_checks_to_findings(checks: list[RegistryCheck]) -> list[Finding]:
+    findings: list[Finding] = []
+    for check in checks:
+        if check.status == "found":
+            continue
+        severity = "high" if check.status == "missing" else "medium"
+        findings.append(
+            Finding(
+                severity=severity,
+                category="registry_validation",
+                file=check.source_file,
+                line=None,
+                title=f"Registry validation {check.status}: {check.ecosystem}:{check.package}",
+                evidence=check.evidence,
+                recommendation="Verify the official package name, registry owner, maintainer history, release age, and lockfile diff before install or agent execution.",
             )
         )
     return findings
@@ -1393,6 +1678,16 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default=str(default_rules_path()),
         help="Path to security_design_gate_rules.json",
     )
+    parser.add_argument(
+        "--tuning",
+        default=None,
+        help="Optional JSON file with reviewed false-positive tuning rules. Cannot suppress high/critical findings or gate failures.",
+    )
+    parser.add_argument(
+        "--registry-check",
+        action="store_true",
+        help="Opt-in network check for npm/PyPI package existence. Does not install or execute packages.",
+    )
     return parser.parse_args(argv)
 
 
@@ -1402,6 +1697,12 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     output_dir = Path(args.output_dir).expanduser().resolve()
     rules_path = Path(args.rules).expanduser().resolve()
+    tuning_path = Path(args.tuning).expanduser().resolve() if args.tuning else None
+    try:
+        tuning_rules = load_tuning_rules(tuning_path)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
     reports: list[ProjectReport] = []
     requested = list(args.targets)
     for raw_target in args.targets:
@@ -1413,27 +1714,28 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Target is not a directory: {target}", file=sys.stderr)
             return 2
         summary, findings = scan_project(target)
+        if args.registry_check:
+            registry_packages = collect_registry_packages(target)
+            registry_checks = [check_registry_package(package) for package in registry_packages]
+            findings.extend(registry_checks_to_findings(registry_checks))
         if args.mode == "history-scan":
             findings.extend(scan_git_history(target))
             findings.sort(key=lambda item: (severity_rank(item.severity), item.file, item.line or 0, item.title))
-            counts = {severity: 0 for severity in ["critical", "high", "medium", "low", "info"]}
-            for finding in findings:
-                counts[finding.severity] = counts.get(finding.severity, 0) + 1
-            score = sum(counts[severity] * RISK_WEIGHTS[severity] for severity in RISK_WEIGHTS)
-            summary = ScanSummary(
-                target=summary.target,
-                generated_at=summary.generated_at,
-                files_seen=summary.files_seen,
-                files_scanned=summary.files_scanned,
-                findings_total=len(findings),
-                critical=counts["critical"],
-                high=counts["high"],
-                medium=counts["medium"],
-                low=counts["low"],
-                info=counts["info"],
-                risk_score=score,
-                risk_band=risk_band(score, counts["critical"], counts["high"]),
+        findings, suppressed = apply_tuning_rules(findings, tuning_rules)
+        if suppressed:
+            findings.append(
+                Finding(
+                    severity="info",
+                    category="tuning",
+                    file=str(tuning_path) if tuning_path else "",
+                    line=None,
+                    title="Reviewed false-positive findings suppressed",
+                    evidence=f"suppressed_findings={suppressed}",
+                    recommendation="Review tuning expiry dates and keep high/critical findings outside suppression.",
+                )
             )
+        findings.sort(key=lambda item: (severity_rank(item.severity), item.file, item.line or 0, item.title))
+        summary = recompute_summary(summary, findings)
         reports.append(ProjectReport(summary=summary, profile=project_profile(target), findings=findings))
     json_path, md_path = write_outputs(output_dir, reports, requested)
     portfolio = build_portfolio_summary(requested, reports)

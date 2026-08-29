@@ -5,6 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from ai_security_rules.cli import package_names_from_project_file
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -22,6 +24,29 @@ def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
 
 
 class CliTests(unittest.TestCase):
+    def test_pyproject_registry_parser_reads_only_dependencies(self) -> None:
+        with tempfile.TemporaryDirectory() as root_dir:
+            root = Path(root_dir)
+            path = root / "pyproject.toml"
+            text = """
+[project]
+name = "not-a-dependency"
+description = "mentions requests but is not a dependency"
+dependencies = [
+  "requests>=2",
+  "rich",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+]
+"""
+            path.write_text(text, encoding="utf-8")
+            packages = package_names_from_project_file(path, root, text)
+            names = {package.name for package in packages}
+            self.assertEqual(names, {"requests", "rich", "pytest"})
+
     def test_env_contents_are_not_read_or_emitted(self) -> None:
         with tempfile.TemporaryDirectory() as root_dir, tempfile.TemporaryDirectory() as report_dir:
             root = Path(root_dir)
@@ -74,6 +99,72 @@ class CliTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             gate = json.loads((Path(report_dir) / "local_security_design_gate_deploy_gate.json").read_text(encoding="utf-8"))
             self.assertEqual(gate["summary"]["decision"], "pass")
+
+    def test_tuning_suppresses_reviewed_medium_findings(self) -> None:
+        with tempfile.TemporaryDirectory() as root_dir, tempfile.TemporaryDirectory() as report_dir:
+            root = Path(root_dir)
+            (root / "AGENTS.md").write_text("Review changes before committing.\n", encoding="utf-8")
+            tuning = root / "tuning.json"
+            tuning.write_text(
+                json.dumps(
+                    {
+                        "allowed_false_positives": [
+                            {
+                                "category": "agent_config",
+                                "file": "AGENTS.md",
+                                "title_contains": "Agent or workspace configuration file present",
+                                "reason": "Reviewed minimal instruction-only AGENTS.md fixture.",
+                                "expires": "2999-12-31",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            result = run_cli("scan", str(root), "--tuning", str(tuning), "--output-dir", report_dir)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads((Path(report_dir) / "local_ai_security_portfolio_report.json").read_text(encoding="utf-8"))
+            categories = {
+                finding["category"]
+                for project in payload["projects"]
+                for finding in project["findings"]
+            }
+            self.assertNotIn("agent_config", categories)
+            self.assertIn("tuning", categories)
+
+    def test_tuning_cannot_suppress_high_findings(self) -> None:
+        with tempfile.TemporaryDirectory() as root_dir, tempfile.TemporaryDirectory() as report_dir:
+            root = Path(root_dir)
+            fake_secret = "sk-" + ("B" * 32)
+            (root / "main.py").write_text("value = '" + fake_secret + "'\n", encoding="utf-8")
+            tuning = root / "tuning.json"
+            tuning.write_text(
+                json.dumps(
+                    {
+                        "allowed_false_positives": [
+                            {
+                                "category": "secret_exposure",
+                                "file": "main.py",
+                                "title_contains": "Potential secret exposure",
+                                "reason": "Attempted high finding suppression should not work.",
+                                "expires": "2999-12-31",
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            result = run_cli("scan", str(root), "--tuning", str(tuning), "--output-dir", report_dir)
+            self.assertEqual(result.returncode, 1)
+            report = (Path(report_dir) / "local_ai_security_portfolio_report.json").read_text(encoding="utf-8")
+            self.assertNotIn(fake_secret, report)
+            payload = json.loads(report)
+            severities = {
+                finding["severity"]
+                for project in payload["projects"]
+                for finding in project["findings"]
+            }
+            self.assertIn("critical", severities)
 
     def test_history_scan_redacts_secret_values(self) -> None:
         with tempfile.TemporaryDirectory() as root_dir, tempfile.TemporaryDirectory() as report_dir:

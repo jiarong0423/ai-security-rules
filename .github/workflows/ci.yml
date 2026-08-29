@@ -19,3 +19,5 @@ jobs:
         run: PYTHONPATH=src python3 -m unittest discover -s tests
       - name: Validate bundled rules
         run: python3 -m json.tool src/ai_security_rules/rules/security_design_gate_rules.json
+      - name: Validate tuning example
+        run: python3 -m json.tool ai-security-rules-tuning.example.json

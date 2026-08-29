@@ -18,6 +18,7 @@ The tool focuses on security surfaces that are easy to miss in agentic coding wo
 - Does not install dependencies.
 - Does not modify the scanned project.
 - Does not call provider APIs.
+- Does not call the network unless `--registry-check` is explicitly enabled.
 - Writes reports only to `--output-dir`.
 
 ## Install
@@ -78,6 +79,18 @@ Scan current files plus local git history:
 ai-security-rules history-scan /path/to/repo --output-dir reports
 ```
 
+Apply reviewed false-positive tuning for low/medium noise only:
+
+```bash
+ai-security-rules scan /path/to/repo --tuning ./ai-security-rules-tuning.example.json --output-dir reports
+```
+
+Run opt-in package registry existence checks for npm/PyPI dependencies:
+
+```bash
+ai-security-rules scan /path/to/repo --registry-check --output-dir reports
+```
+
 The legacy form is also supported:
 
 ```bash
@@ -117,6 +130,22 @@ You can supply a custom rules file:
 ai-security-rules rules-check /path/to/repo --rules ./security_design_gate_rules.json --output-dir reports
 ```
 
+Reviewed false positives can be tuned with a JSON file containing `allowed_false_positives`. Tuning rules require a reason and may include an expiry date. They cannot suppress high or critical findings and cannot bypass gate failures.
+
+```json
+{
+  "allowed_false_positives": [
+    {
+      "category": "agent_config",
+      "file": "AGENTS.md",
+      "title_contains": "Agent or workspace configuration file present",
+      "reason": "Reviewed repo instructions; no executable command or secret instruction present.",
+      "expires": "2026-12-31"
+    }
+  ]
+}
+```
+
 ## Design Philosophy
 
 If browser JavaScript can read a value, it is not a secret. Provider calls that need real credentials should go through a protected backend proxy with session, JWT, role, or tenant validation. Long-lived and high-privilege credentials should live behind a secret manager or vault with IAM, audit logs, and revoke/rotate paths.
@@ -142,7 +171,7 @@ The SAST integration is deliberately an evidence gate, not an embedded scanner. 
 ## Limitations
 
 - Git history scanning is available with `history-scan`, but it is local-only and conservative. `.env*` and credential-like historical filenames are reported without reading or printing their contents.
-- Does not validate registry ownership over the network.
+- Registry validation is opt-in with `--registry-check` and only checks npm/PyPI package existence. It does not prove ownership, maintainer reputation, or package safety.
 - Does not replace SAST, dependency scanners, or dedicated secret scanners.
 - Uses conservative pattern matching, so findings require review.
 

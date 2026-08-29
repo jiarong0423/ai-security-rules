@@ -1,0 +1,11 @@
+{
+  "allowed_false_positives": [
+    {
+      "category": "agent_config",
+      "file": "AGENTS.md",
+      "title_contains": "Agent or workspace configuration file present",
+      "reason": "Reviewed repo-level agent instructions; no executable command, package runner, credential handling, or permission bypass instruction is present.",
+      "expires": "2026-12-31"
+    }
+  ]
+}
