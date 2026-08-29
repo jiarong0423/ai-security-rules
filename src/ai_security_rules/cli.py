@@ -807,6 +807,38 @@ SAST_EVIDENCE_DOC_NAMES = {
     "code_security_evidence.md",
 }
 
+SECRET_SCAN_EVIDENCE_DOC_NAMES = {
+    "SECRET_SCAN_EVIDENCE.md",
+    "secret_scan_evidence.md",
+    "GITLEAKS_EVIDENCE.md",
+    "gitleaks_evidence.md",
+    "TRUFFLEHOG_EVIDENCE.md",
+    "trufflehog_evidence.md",
+}
+
+PACKAGE_REPUTATION_EVIDENCE_DOC_NAMES = {
+    "PACKAGE_REPUTATION_EVIDENCE.md",
+    "package_reputation_evidence.md",
+    "DEPENDENCY_REPUTATION_EVIDENCE.md",
+    "dependency_reputation_evidence.md",
+    "LOCKFILE_REVIEW_EVIDENCE.md",
+    "lockfile_review_evidence.md",
+}
+
+MCP_ALLOWLIST_MANIFEST_NAMES = {
+    "MCP_SERVER_ALLOWLIST.md",
+    "mcp_server_allowlist.md",
+    "mcp-server-allowlist.json",
+    "mcp_server_allowlist.json",
+}
+
+THREAT_MODEL_DOC_NAMES = {
+    "SECURITY_THREAT_MODEL.md",
+    "security_threat_model.md",
+    "THREAT_MODEL.md",
+    "threat_model.md",
+}
+
 PUBLIC_EXPORT_MANIFEST_NAMES = {
     "public-export-manifest.json",
     "public-export-manifest.md",
@@ -822,7 +854,7 @@ GOVERNANCE_DOC_NAMES = SECRET_OWNER_DOC_NAMES | PUBLIC_EXPORT_MANIFEST_NAMES | {
     "package_runner_allowlist.md",
     "dependency-allowlist.md",
     "dependency_allowlist.md",
-} | SAST_EVIDENCE_DOC_NAMES
+} | SAST_EVIDENCE_DOC_NAMES | SECRET_SCAN_EVIDENCE_DOC_NAMES | PACKAGE_REPUTATION_EVIDENCE_DOC_NAMES | MCP_ALLOWLIST_MANIFEST_NAMES | THREAT_MODEL_DOC_NAMES
 
 
 def has_path_part(path_text: str, candidates: set[str]) -> bool:
@@ -985,6 +1017,95 @@ def project_has_sast_evidence(root: Path) -> bool:
     return False
 
 
+def project_has_secret_scan_evidence(root: Path) -> bool:
+    evidence_terms = {"gitleaks", "trufflehog", "secret scan", "secret scanning", "history scan", "history-scan"}
+    result_terms = {"pass", "passed", "clean", "critical=0", "high=0", "通過"}
+    for path in iter_files(root):
+        if path.name not in SECRET_SCAN_EVIDENCE_DOC_NAMES and path.name not in SAST_EVIDENCE_DOC_NAMES:
+            continue
+        text = read_text_file(path)
+        if text is None:
+            continue
+        lowered = text.lower()
+        if any(term in lowered for term in evidence_terms) and any(term in lowered for term in result_terms):
+            return True
+    return False
+
+
+def project_has_package_reputation_evidence(root: Path) -> bool:
+    evidence_terms = {"lockfile", "package reputation", "registry", "maintainer", "publish", "pypi", "npm", "dependency"}
+    result_terms = {"pass", "passed", "reviewed", "clean", "accepted", "通過", "已審核"}
+    for path in iter_files(root):
+        if path.name not in PACKAGE_REPUTATION_EVIDENCE_DOC_NAMES:
+            continue
+        text = read_text_file(path)
+        if text is None:
+            continue
+        lowered = text.lower()
+        if any(term in lowered for term in evidence_terms) and any(term in lowered for term in result_terms):
+            return True
+    return False
+
+
+def project_has_package_runner_allowlist(root: Path) -> bool:
+    allowlist_names = {
+        "package-runner-allowlist.md",
+        "package_runner_allowlist.md",
+        "dependency-allowlist.md",
+        "dependency_allowlist.md",
+    }
+    for path in iter_files(root):
+        if path.name not in allowlist_names:
+            continue
+        text = read_text_file(path)
+        if text is None:
+            continue
+        lowered = text.lower()
+        if ("allowlist" in lowered or "allowed" in lowered or "允許" in lowered) and (
+            "npx" in lowered or "pip install" in lowered or "package runner" in lowered or "command" in lowered
+        ):
+            return True
+    return False
+
+
+def project_has_mcp_surface(root: Path) -> bool:
+    for path in iter_inventory_files(root):
+        rel = safe_relative(path, root)
+        if path.name in {".mcp.json", "mcp.json", "mcp.config.json"}:
+            return True
+        if ".mcp" in Path(rel).parts:
+            return True
+    return False
+
+
+def project_has_mcp_allowlist_manifest(root: Path) -> bool:
+    for path in iter_files(root):
+        if path.name not in MCP_ALLOWLIST_MANIFEST_NAMES:
+            continue
+        text = read_text_file(path)
+        if text is None:
+            continue
+        lowered = text.lower()
+        if ("allowlist" in lowered or "allowed" in lowered or "允許" in lowered) and ("command" in lowered or "server" in lowered or "mcp" in lowered):
+            return True
+    return False
+
+
+def project_has_threat_model(root: Path) -> bool:
+    required_terms = ["assets", "trust boundary", "data flow", "threats", "controls"]
+    zh_required_terms = ["資產", "信任邊界", "資料流", "威脅", "控制"]
+    for path in iter_files(root):
+        if path.name not in THREAT_MODEL_DOC_NAMES:
+            continue
+        text = read_text_file(path)
+        if text is None:
+            continue
+        lowered = text.lower()
+        if all(term in lowered for term in required_terms) or all(term in text for term in zh_required_terms):
+            return True
+    return False
+
+
 def load_gate_rules(path: Path) -> dict[str, Any]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -1089,6 +1210,17 @@ def evaluate_project_gates(report: ProjectReport, rules: dict[str, Any], mode: s
                     "Secret-like files or credential indicators exist, but no SECURITY/SECRETS/RUNBOOK owner+rotation record was found.",
                 )
             )
+        needs_threat_model = project_has_code_surface(root) or project_has_provider_intent(root) or report.profile.agent_surface or report.profile.package_surface
+        if needs_threat_model and not project_has_threat_model(root):
+            gate_findings.append(
+                make_gate_finding(
+                    rules,
+                    report,
+                    "pre_design",
+                    "missing_pre_design_threat_model",
+                    "Project surface exists, but no pre-design threat model document was found.",
+                )
+            )
 
     if "pre_implementation" in enabled_stages:
         high_agent_hits = [
@@ -1115,15 +1247,16 @@ def evaluate_project_gates(report: ProjectReport, rules: dict[str, Any], mode: s
             or (item.category == "repo_borne_executable_config" and "package_runner" in item.title)
         ]
         if runner_hits:
-            gate_findings.append(
-                make_gate_finding(
-                    rules,
-                    report,
-                    "pre_dependency",
-                    "unverified_package_runner",
-                    f"{len(runner_hits)} package-runner indicator(s) require verification before execution.",
+            if not project_has_package_runner_allowlist(root):
+                gate_findings.append(
+                    make_gate_finding(
+                        rules,
+                        report,
+                        "pre_dependency",
+                        "unverified_package_runner",
+                        f"{len(runner_hits)} package-runner indicator(s) require verification before execution.",
+                    )
                 )
-            )
         watchlist_hits = [item for item in findings if item.category == "package_hallucination_or_slopsquatting"]
         if watchlist_hits:
             gate_findings.append(
@@ -1133,6 +1266,16 @@ def evaluate_project_gates(report: ProjectReport, rules: dict[str, Any], mode: s
                     "pre_dependency",
                     "hallucination_watchlist_hit",
                     f"{len(watchlist_hits)} known hallucination/slopsquatting watchlist hit(s).",
+                )
+            )
+        if report.profile.package_surface and not project_has_package_reputation_evidence(root):
+            gate_findings.append(
+                make_gate_finding(
+                    rules,
+                    report,
+                    "pre_dependency",
+                    "missing_lockfile_package_reputation_evidence",
+                    "Package/dependency surface detected, but no lockfile/package reputation evidence document was found.",
                 )
             )
 
@@ -1152,6 +1295,16 @@ def evaluate_project_gates(report: ProjectReport, rules: dict[str, Any], mode: s
                     "pre_agent_run",
                     "mcp_or_agent_shell_without_allowlist",
                     f"{len(mcp_shell_hits)} shell/process/package/install indicator(s) found in agent-relevant config.",
+                )
+            )
+        if project_has_mcp_surface(root) and not project_has_mcp_allowlist_manifest(root):
+            gate_findings.append(
+                make_gate_finding(
+                    rules,
+                    report,
+                    "pre_agent_run",
+                    "missing_mcp_server_allowlist_manifest",
+                    "MCP configuration detected, but no MCP server allowlist manifest was found.",
                 )
             )
 
@@ -1198,6 +1351,16 @@ def evaluate_project_gates(report: ProjectReport, rules: dict[str, Any], mode: s
                     "pre_deploy",
                     "missing_sast_or_code_security_scan",
                     "Source-code surface detected, but no SAST/code-security evidence document was found.",
+                )
+            )
+        if (project_has_code_surface(root) or report.profile.package_surface or report.profile.secret_surface) and not project_has_secret_scan_evidence(root):
+            gate_findings.append(
+                make_gate_finding(
+                    rules,
+                    report,
+                    "pre_deploy",
+                    "missing_gitleaks_or_trufflehog_evidence",
+                    "Release-relevant surface detected, but no gitleaks/trufflehog/secret-scan evidence document was found.",
                 )
             )
 

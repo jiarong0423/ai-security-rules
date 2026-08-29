@@ -29,6 +29,12 @@
           "severity": "P1",
           "rule": "Every secret must have an owner, storage location, rotation path, and revoke path.",
           "required_control": "Record secret name or env name only; never record value."
+        },
+        {
+          "id": "missing_pre_design_threat_model",
+          "severity": "P1",
+          "rule": "Before implementation, projects with code, dependencies, provider integrations, or agent surfaces must have a threat model.",
+          "required_control": "Record assets, trust boundaries, data flows, threats, and controls in SECURITY_THREAT_MODEL.md or THREAT_MODEL.md."
         }
       ]
     },
@@ -64,6 +70,12 @@
           "rule": "Known hallucination or slopsquatting names require manual review.",
           "watchlist": ["huggingface-cli", "react-codeshift", "unused-imports"],
           "required_control": "Do not execute until verified."
+        },
+        {
+          "id": "missing_lockfile_package_reputation_evidence",
+          "severity": "P1",
+          "rule": "Dependency-bearing projects must keep lockfile and package reputation review evidence.",
+          "required_control": "Record registry existence, maintainer/publisher review, release age, lockfile diff, and accepted residual risk in PACKAGE_REPUTATION_EVIDENCE.md."
         }
       ]
     },
@@ -75,6 +87,12 @@
           "severity": "P1",
           "rule": "Project-level MCP or agent config must not start shell/process/package runner without allowlist.",
           "required_control": "Require explicit command allowlist and operator approval."
+        },
+        {
+          "id": "missing_mcp_server_allowlist_manifest",
+          "severity": "P1",
+          "rule": "Projects with MCP configuration must keep an MCP server allowlist manifest.",
+          "required_control": "Record allowed MCP servers, command paths, permission scope, network behavior, and owner in MCP_SERVER_ALLOWLIST.md or mcp-server-allowlist.json."
         }
       ]
     },
@@ -109,6 +127,12 @@
           "severity": "P1",
           "rule": "Deployable or releasable source-code projects must keep SAST or equivalent code-security scan evidence.",
           "required_control": "Record the tool used, scope, date, result, and accepted residual risk in SECURITY_SCAN_EVIDENCE.md, SAST_EVIDENCE.md, or CODE_SECURITY_EVIDENCE.md."
+        },
+        {
+          "id": "missing_gitleaks_or_trufflehog_evidence",
+          "severity": "P1",
+          "rule": "Deployable or releasable projects must keep git history secret-scan evidence.",
+          "required_control": "Record gitleaks, trufflehog, or equivalent secret-scan scope, result, date, and accepted residual risk in SECRET_SCAN_EVIDENCE.md."
         }
       ]
     }

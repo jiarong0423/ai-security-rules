@@ -73,6 +73,12 @@ Run the deployment evidence gate:
 ai-security-rules deploy-gate /path/to/repo --output-dir reports
 ```
 
+`deploy-gate` checks release evidence for source-code and dependency-bearing projects:
+
+- SAST/code-security evidence: `SECURITY_SCAN_EVIDENCE.md`, `SAST_EVIDENCE.md`, or `CODE_SECURITY_EVIDENCE.md`
+- secret-scan evidence: `SECRET_SCAN_EVIDENCE.md`, `GITLEAKS_EVIDENCE.md`, or `TRUFFLEHOG_EVIDENCE.md`
+- package reputation evidence: `PACKAGE_REPUTATION_EVIDENCE.md`, `DEPENDENCY_REPUTATION_EVIDENCE.md`, or `LOCKFILE_REVIEW_EVIDENCE.md`
+
 Scan current files plus local git history:
 
 ```bash
@@ -145,6 +151,20 @@ Reviewed false positives can be tuned with a JSON file containing `allowed_false
   ]
 }
 ```
+
+## Local Project Constitution
+
+`LOCAL_PROJECT_SECURITY_CONSTITUTION.md` defines the full local development baseline for AI-assisted projects:
+
+- pre-design threat model before implementation
+- backend proxy and secret ownership before provider integration
+- agent/rules/MCP files treated as code
+- MCP server allowlist before agent execution
+- package runner and dependency reputation evidence before install or release
+- SAST/code-security evidence before deployment
+- gitleaks/trufflehog or equivalent secret-scan evidence before deployment
+- default-deny public export manifest before publishing
+- closeout evidence after security-relevant changes
 
 ## Design Philosophy
 
