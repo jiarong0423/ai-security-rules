@@ -163,8 +163,18 @@ This repository includes submission support material:
 - `HACKATHON_DISCLOSURE.md`
 - `HACKATHON_RULE_FIT.md`
 - `DEMO_SCRIPT.md`
+- `ARCHITECTURE.md`
+- `strands_agent_demo/`
 
 For hackathons that require substantial new work, disclose this repository as pre-existing open-source baseline and submit the agentic review workflow as the new judged functionality.
+
+For Strands-based agent hackathons, run the wrapper demo:
+
+```bash
+PYTHONPATH=src python3 strands_agent_demo/vibegate_strands_agent.py . --output-dir demo-reports --clean-output
+```
+
+The wrapper defines Strands-compatible tools and runs a deterministic no-credential demo by default. If the Strands SDK and model provider credentials are configured, add `--use-strands`.
 
 ## Rules
 

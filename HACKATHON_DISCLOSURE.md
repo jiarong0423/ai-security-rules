@@ -35,11 +35,13 @@ The rules allow existing open-source libraries, developer tools, boilerplate, AI
 The Devpost submission should include:
 
 - public repository link
-- 3-minute maximum demo video
+- 5-minute maximum demo video for Agents for Humans
 - short project description
 - list of major models, frameworks, APIs, tools, and datasets
 - all team member names
 - setup instructions
+- architecture diagram
+- AWS Builder ID
 - clear disclosure of pre-existing baseline versus hackathon-built agentic workflow
 
 ## Safety Statement

@@ -20,10 +20,12 @@ Status: ready for initial GitHub repository import.
 - Evidence freshness gate with configurable `--evidence-max-age-days`.
 - Copy-ready integration templates under `templates/`.
 - IDE extension integration contract under `integrations/`.
+- Strands-compatible agent demo under `strands_agent_demo/`.
 - Optional false-positive tuning via `--tuning`, limited to low/medium/info findings.
 - Optional npm/PyPI package existence checks via `--registry-check`; disabled by default.
 - Bundled rules: `src/ai_security_rules/rules/security_design_gate_rules.json`.
 - Devpost submission draft, hackathon disclosure, and demo script.
+- Architecture diagram in `ARCHITECTURE.md`.
 - README with install, usage, reports, exit codes, target users, safety boundaries, and limitations.
 - MIT license.
 - GitHub Actions CI.
@@ -40,7 +42,7 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m unittest discover -s tests
 Result:
 
 ```text
-Ran 21 tests
+Ran 22 tests
 OK
 ```
 
@@ -53,10 +55,10 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m ai_security_rules scan . --o
 Result:
 
 ```text
-critical=0 high=0 medium=50
+critical=0 high=0 medium=61
 ```
 
-The remaining medium findings are expected because the scanner source, tests, demo script, hackathon rule-fit document, and README describe shell commands, package runners, install hooks, synthetic secret fixtures, and permission concepts as rule text.
+The remaining medium findings are expected because the scanner source, tests, Strands wrapper, demo script, hackathon rule-fit document, and README describe shell commands, package runners, install hooks, synthetic secret fixtures, and permission concepts as rule text.
 
 Agent review self-check:
 
@@ -68,7 +70,23 @@ Result:
 
 ```text
 Gate: mode=rules-check decision=pass blocking=0 P0=0 P1=0 P2=0
-Agent review: decision=pass items=50 P0=0 P1=0 P2=50 P3=0
+Agent review: decision=pass items=61 P0=0 P1=0 P2=61 P3=0
+```
+
+Strands-compatible dry-run:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 strands_agent_demo/vibegate_strands_agent.py . --output-dir /private/tmp/vibegate-strands-demo --clean-output
+```
+
+Result:
+
+```text
+Mode: deterministic dry-run
+Strands SDK available: False
+Tool Call: run_vibegate_agent_review
+Tool Call: read_vibegate_queue
+Tool Call: recommend_agent_next_action
 ```
 
 History self-scan:

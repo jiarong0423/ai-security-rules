@@ -29,9 +29,11 @@ Core gates:
 Primary fit:
 
 - AI agent evaluation, reliability, security, and safety tooling.
+- Agents for Humans Hackathon: fits after adding the Strands-compatible agent wrapper.
 
 Prize-track fit:
 
+- Agents for Humans - Professional Agents: strongest fit. VibeGate helps developers, maintainers, DevSecOps engineers, creators, and small-business builders handle repetitive, judgment-heavy security review before AI coding agents work on a repo.
 - Quirq - Build It: fits if the demo shows an observable agent workspace or review environment where risks, gates, and agent actions are visible.
 - Code Registry Challenge: fits if positioned as protection for codebases before agent execution, public export, or deployment.
 
@@ -58,6 +60,14 @@ The hackathon-facing feature is the `agent-review` mode. It turns scan and gate 
 - P2: agent may prepare low-risk documentation and cleanup suggestions.
 
 This makes the project meaningful for agent reliability, security, and safety tooling rather than a plain static scanner.
+
+For Strands-based submissions, `strands_agent_demo/vibegate_strands_agent.py` wraps VibeGate as a tool-using agent workflow:
+
+- tool 1: run the VibeGate agent review
+- tool 2: read the remediation queue
+- tool 3: recommend the next safe coding-agent action
+
+The default demo is deterministic and requires no API key. A real Strands Agent path is available with `--use-strands` when the SDK and model provider are configured.
 
 ## How AI Agents Are Used
 
@@ -86,12 +96,21 @@ Repository:
 
 - https://github.com/jiarong0423/ai-security-rules
 
+Architecture diagram:
+
+- `ARCHITECTURE.md`
+
 Demo video:
 
-- Maximum length: 3 minutes.
+- Maximum length for Agents for Humans: 5 minutes.
 - Show the working prototype running locally.
 - Focus on `agent-review` and the generated remediation queue.
 - Show the gate decision and explain why unsafe agent execution/export/deploy is blocked.
+- Cover the required pitch points: problem, target users, why it matters.
+
+AWS Builder ID:
+
+- Add the submitter's AWS Builder ID before final submission.
 
 Team members:
 
@@ -101,8 +120,10 @@ Major models, frameworks, APIs, tools, and datasets:
 
 - Python 3.10+
 - Git
+- Strands Agents SDK compatibility wrapper
 - JSON rule engine
 - Markdown and JSON report outputs
+- Mermaid architecture diagram in Markdown
 - Optional external evidence tools: gitleaks, trufflehog, Semgrep, CodeQL, SAST tools, dependency scanners
 - Optional AI coding tools in workflow: Codex, Cursor, Claude Code, GitHub Copilot, Gemini CLI
 - No required dataset
@@ -114,6 +135,7 @@ Setup instructions:
 git clone https://github.com/jiarong0423/ai-security-rules.git
 cd ai-security-rules
 PYTHONPATH=src python3 -m ai_security_rules agent-review . --output-dir demo-reports
+PYTHONPATH=src python3 strands_agent_demo/vibegate_strands_agent.py . --output-dir demo-reports --clean-output
 open demo-reports/agentic_security_review_queue.md
 ```
 
@@ -151,7 +173,7 @@ Technical execution:
 
 Agent design:
 
-- Produces an agent-readable remediation queue with explicit action boundaries.
+- Produces an agent-readable remediation queue with explicit action boundaries and exposes a Strands-compatible tool workflow.
 
 Creativity:
 
@@ -169,10 +191,15 @@ Demo completeness:
 
 - Local prototype can be run from a public repository with no paid API.
 
+Agents for Humans track:
+
+- Professional Agents is the best fit because the project helps working developers automate repetitive security review while surfacing only real decisions.
+
 ## Demo Commands
 
 ```bash
 PYTHONPATH=src python3 -m ai_security_rules agent-review . --output-dir demo-reports
+PYTHONPATH=src python3 strands_agent_demo/vibegate_strands_agent.py . --output-dir demo-reports --clean-output
 PYTHONPATH=src python3 -m ai_security_rules export-gate . --output-dir demo-reports
 PYTHONPATH=src python3 -m ai_security_rules deploy-gate . --output-dir demo-reports
 ```

@@ -291,6 +291,33 @@ dev = [
             self.assertIn("missing_pre_design_threat_model", rules)
             self.assertIn("missing_sast_or_code_security_scan", rules)
 
+    def test_strands_demo_dry_run_writes_queue(self) -> None:
+        with tempfile.TemporaryDirectory() as root_dir, tempfile.TemporaryDirectory() as report_dir:
+            root = Path(root_dir)
+            (root / "main.py").write_text("print('hello')\n", encoding="utf-8")
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(REPO_ROOT / "strands_agent_demo" / "vibegate_strands_agent.py"),
+                    str(root),
+                    "--output-dir",
+                    report_dir,
+                    "--clean-output",
+                ],
+                cwd=REPO_ROOT,
+                env={"PYTHONPATH": str(REPO_ROOT / "src")},
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("Mode: deterministic dry-run", result.stdout)
+            queue_path = Path(report_dir) / "agentic_security_review_queue.json"
+            self.assertTrue(queue_path.exists())
+            payload = json.loads(queue_path.read_text(encoding="utf-8"))
+            self.assertEqual(payload["summary"]["decision"], "fail")
+
     def test_tuning_suppresses_reviewed_medium_findings(self) -> None:
         with tempfile.TemporaryDirectory() as root_dir, tempfile.TemporaryDirectory() as report_dir:
             root = Path(root_dir)

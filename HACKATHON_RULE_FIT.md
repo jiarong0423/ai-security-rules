@@ -6,6 +6,8 @@ This project can fit the AI Agent Hackathon if the submission is positioned as a
 
 The best fit is not a generic scanner category. The best fit is pre-agent safety infrastructure: before an AI agent reads a repo, runs tools, installs dependencies, exports code, or deploys, VibeGate checks whether the repo is safe enough to proceed.
 
+For Agents for Humans, the best track is Professional Agents because the target user is a developer, maintainer, DevSecOps engineer, creator, or small-business builder who repeatedly needs security judgment before letting coding agents work.
+
 ## Rule Fit Matrix
 
 | Rule area | Fit | Evidence / positioning |
@@ -38,6 +40,7 @@ The best fit is not a generic scanner category. The best fit is pre-agent safety
 | Track | Fit | Notes |
 |---|---|---|
 | General AI Agent Hackathon | Strong | Security and reliability tooling for coding agents is explicitly in scope. |
+| Agents for Humans - Professional Agents | Strong | Automates repetitive, judgment-heavy repo safety review for professional developers and maintainers. |
 | Quirq - Build It | Conditional | Stronger if the demo shows an observable workspace where gate decisions, queue items, and agent boundaries are visually clear. |
 | Quirq Bounty - Break It | Weak to medium | Could be used to demonstrate how unsafe agent workflows break, but the current project is a defensive builder tool. |
 | Code Registry Challenge | Medium to strong | Strong if presented as protection for repositories before agent execution, public export, or deployment. |
@@ -58,6 +61,7 @@ Hackathon-judged work:
 - agent-readable remediation queue
 - safety lanes for pre-development management, open-source pollution control, hallucination/supply-chain control, and release evidence control
 - demo script and Devpost packaging
+- Strands-compatible wrapper and architecture diagram
 
 ## Plain-language Positioning
 
