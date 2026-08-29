@@ -2,6 +2,8 @@
 
 Status: pass for current repository scope.
 
+Review Date: 2026-08-30.
+
 ## Policy
 
 Public export is default-deny. Only files required for the open-source security gate tool may be exported.
@@ -28,6 +30,8 @@ Public export is default-deny. Only files required for the open-source security 
 | `pyproject.toml` | public-export | Python package metadata |
 | `src/ai_security_rules/**` | public-export | package source |
 | `tests/**` | public-export | synthetic tests |
+| `templates/**` | public-export | integration templates |
+| `integrations/**` | public-export | extension integration contracts |
 
 ## Denied Public Paths
 

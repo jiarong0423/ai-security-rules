@@ -10,6 +10,7 @@ This constitution defines the minimum local project development rules for AI-ass
 - Project commands must not run during security inventory unless the operator explicitly chooses a separate external tool.
 - Public export is default-deny.
 - Evidence beats memory. A stage is not complete until its evidence file or manifest exists.
+- Integration must be easy enough to use. Repositories should adopt pre-commit or CI templates rather than relying on manual scanner runs.
 
 ## 2. Pre-Design Gate
 
@@ -51,6 +52,7 @@ Agent-readable files are executable governance surface, not ordinary documentati
 Required controls:
 
 - review hidden config before opening the project with an agent
+- reject invisible Unicode control characters and prompt-injection style override instructions in agent-readable files
 - allowlist any shell, package runner, process spawn, install hook, or network fetch
 - block ambiguous auto-approval or bypass instructions
 
@@ -70,6 +72,14 @@ The allowlist must record:
 - network behavior
 - owner
 - review date
+
+MCP configuration must be rejected or escalated when it requests:
+
+- `sudo`
+- root filesystem scope
+- home-directory-wide scope
+- destructive shell permissions
+- wildcard network access
 
 ## 6. Dependency And Package Reputation
 
@@ -128,6 +138,8 @@ Before deployment, record:
 - SAST or code-security evidence
 - gitleaks, trufflehog, or equivalent secret-scan evidence
 - package reputation evidence for dependency-bearing projects
+
+Evidence must include a `YYYY-MM-DD` review date. Evidence older than the configured max age is invalid. If an evidence file records `commit_sha`, it must match the current git HEAD.
 
 ## 10. Closeout
 

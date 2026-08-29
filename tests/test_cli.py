@@ -128,16 +128,63 @@ dev = [
             rule_ids = {finding["rule_id"] for finding in gate["findings"]}
             self.assertIn("missing_mcp_server_allowlist_manifest", rule_ids)
 
+    def test_prompt_injection_hidden_character_is_high(self) -> None:
+        with tempfile.TemporaryDirectory() as root_dir, tempfile.TemporaryDirectory() as report_dir:
+            root = Path(root_dir)
+            hidden = chr(0x200B)
+            (root / "AGENTS.md").write_text("Normal instruction." + hidden + " Hidden instruction.\n", encoding="utf-8")
+            result = run_cli("scan", str(root), "--output-dir", report_dir)
+            self.assertEqual(result.returncode, 1)
+            payload = json.loads((Path(report_dir) / "local_ai_security_portfolio_report.json").read_text(encoding="utf-8"))
+            categories = {
+                finding["category"]
+                for project in payload["projects"]
+                for finding in project["findings"]
+            }
+            self.assertIn("prompt_injection_surface", categories)
+
+    def test_mcp_overprivileged_command_is_high(self) -> None:
+        with tempfile.TemporaryDirectory() as root_dir, tempfile.TemporaryDirectory() as report_dir:
+            root = Path(root_dir)
+            (root / ".mcp.json").write_text('{"servers":{"bad":{"command":"sudo tool","args":["/"]}}}\n', encoding="utf-8")
+            result = run_cli("scan", str(root), "--output-dir", report_dir)
+            self.assertEqual(result.returncode, 1)
+            payload = json.loads((Path(report_dir) / "local_ai_security_portfolio_report.json").read_text(encoding="utf-8"))
+            categories = {
+                finding["category"]
+                for project in payload["projects"]
+                for finding in project["findings"]
+            }
+            self.assertIn("mcp_overprivileged_config", categories)
+
+    def test_deploy_gate_rejects_stale_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as root_dir, tempfile.TemporaryDirectory() as report_dir:
+            root = Path(root_dir)
+            (root / "main.py").write_text("print('hello')\n", encoding="utf-8")
+            (root / "SECURITY_SCAN_EVIDENCE.md").write_text(
+                "Review Date: 2020-01-01. SAST: Semgrep pass. Result: clean.\n",
+                encoding="utf-8",
+            )
+            (root / "SECRET_SCAN_EVIDENCE.md").write_text(
+                "Review Date: 2020-01-01. gitleaks pass. trufflehog passed. high=0 critical=0.\n",
+                encoding="utf-8",
+            )
+            result = run_cli("deploy-gate", str(root), "--output-dir", report_dir)
+            self.assertEqual(result.returncode, 1)
+            gate = json.loads((Path(report_dir) / "local_security_design_gate_deploy_gate.json").read_text(encoding="utf-8"))
+            rule_ids = {finding["rule_id"] for finding in gate["findings"]}
+            self.assertIn("stale_or_mismatched_security_evidence", rule_ids)
+
     def test_deploy_gate_accepts_sast_evidence_for_source_projects(self) -> None:
         with tempfile.TemporaryDirectory() as root_dir, tempfile.TemporaryDirectory() as report_dir:
             root = Path(root_dir)
             (root / "main.py").write_text("print('hello')\n", encoding="utf-8")
             (root / "SECURITY_SCAN_EVIDENCE.md").write_text(
-                "SAST: Semgrep pass. CodeQL passed. Result: clean.\n",
+                "Review Date: 2099-12-31. SAST: Semgrep pass. CodeQL passed. Result: clean.\n",
                 encoding="utf-8",
             )
             (root / "SECRET_SCAN_EVIDENCE.md").write_text(
-                "gitleaks pass. trufflehog passed. high=0 critical=0.\n",
+                "Review Date: 2099-12-31. gitleaks pass. trufflehog passed. high=0 critical=0.\n",
                 encoding="utf-8",
             )
             result = run_cli("deploy-gate", str(root), "--output-dir", report_dir)

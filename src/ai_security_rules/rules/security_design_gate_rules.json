@@ -133,6 +133,12 @@
           "severity": "P1",
           "rule": "Deployable or releasable projects must keep git history secret-scan evidence.",
           "required_control": "Record gitleaks, trufflehog, or equivalent secret-scan scope, result, date, and accepted residual risk in SECRET_SCAN_EVIDENCE.md."
+        },
+        {
+          "id": "stale_or_mismatched_security_evidence",
+          "severity": "P1",
+          "rule": "Security evidence must be fresh and must not claim a mismatched commit SHA.",
+          "required_control": "Keep evidence dates within the configured max age. If commit_sha is recorded, it must match the current git HEAD."
         }
       ]
     }

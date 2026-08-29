@@ -2,6 +2,8 @@
 
 Status: pass for the current repository scope.
 
+Review Date: 2026-08-30.
+
 ## Scope
 
 - Project: `ai-security-rules`
@@ -15,10 +17,10 @@ Status: pass for the current repository scope.
 | Check | Command | Result |
 |---|---|---|
 | Unit tests | `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m unittest discover -s tests` | passed |
-| Current tree AI security scan | `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m ai_security_rules scan . --output-dir /private/tmp/ai-security-rules-v05-scan` | passed with critical=0 and high=0 |
-| Local git history scan | `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m ai_security_rules history-scan . --output-dir /private/tmp/ai-security-rules-v05-history` | passed with critical=0 and high=0 |
-| Deployment evidence gate | `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m ai_security_rules deploy-gate . --output-dir /private/tmp/ai-security-rules-v05-deploy` | passed with blocking=0 |
-| Full rule gate | `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m ai_security_rules rules-check . --output-dir /private/tmp/ai-security-rules-v05-rules` | passed with blocking=0 |
+| Current tree AI security scan | `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m ai_security_rules scan . --output-dir /private/tmp/ai-security-rules-v06-scan-2` | passed with critical=0 and high=0 |
+| Local git history scan | `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m ai_security_rules history-scan . --output-dir /private/tmp/ai-security-rules-v06-history-2` | passed with critical=0 and high=0 |
+| Deployment evidence gate | `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m ai_security_rules deploy-gate . --output-dir /private/tmp/ai-security-rules-v06-deploy-2` | passed with blocking=0 |
+| Full rule gate | `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m ai_security_rules rules-check . --output-dir /private/tmp/ai-security-rules-v06-rules-2` | passed with blocking=0 |
 | Optional registry check fixture | `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m ai_security_rules scan /private/tmp/ai-security-rules-registry-check-fixture --registry-check --output-dir /private/tmp/ai-security-rules-v04b-registry` | detected a synthetic missing PyPI package as high |
 | Targeted sensitive string check | `rg` against private local paths, prior project names, personal Gmail, and common key patterns | passed with no matches |
 

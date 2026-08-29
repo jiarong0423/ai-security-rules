@@ -2,6 +2,8 @@
 
 Status: pass for current repository scope.
 
+Review Date: 2026-08-30.
+
 ## Scope
 
 - Current working tree
@@ -13,8 +15,8 @@ Status: pass for current repository scope.
 
 | Check | Tool or Command | Result |
 |---|---|---|
-| Built-in current tree secret indicator scan | `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m ai_security_rules scan . --output-dir /private/tmp/ai-security-rules-v05-scan` | passed with critical=0 and high=0 |
-| Built-in local git history secret scan | `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m ai_security_rules history-scan . --output-dir /private/tmp/ai-security-rules-v05-history` | passed with critical=0 and high=0 |
+| Built-in current tree secret indicator scan | `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m ai_security_rules scan . --output-dir /private/tmp/ai-security-rules-v06-scan-2` | passed with critical=0 and high=0 |
+| Built-in local git history secret scan | `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m ai_security_rules history-scan . --output-dir /private/tmp/ai-security-rules-v06-history-2` | passed with critical=0 and high=0 |
 | Targeted sensitive string check | `rg` against private local paths, prior project names, personal Gmail, and common key patterns | passed with no matches |
 
 ## External Tool Position

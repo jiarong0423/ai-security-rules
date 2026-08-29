@@ -9,6 +9,8 @@ The tool focuses on security surfaces that are easy to miss in agentic coding wo
 - secret exposure indicators without printing secret values;
 - package hallucination and slopsquatting watchlist hits;
 - public-export gates for demo packages, release bundles, and copied repositories.
+- prompt-injection indicators in agent-readable files, including invisible Unicode control characters;
+- over-privileged MCP configuration indicators such as `sudo`, root filesystem scope, home-directory scope, and wildcard network access.
 
 ## Safety Guarantees
 
@@ -79,6 +81,12 @@ ai-security-rules deploy-gate /path/to/repo --output-dir reports
 - secret-scan evidence: `SECRET_SCAN_EVIDENCE.md`, `GITLEAKS_EVIDENCE.md`, or `TRUFFLEHOG_EVIDENCE.md`
 - package reputation evidence: `PACKAGE_REPUTATION_EVIDENCE.md`, `DEPENDENCY_REPUTATION_EVIDENCE.md`, or `LOCKFILE_REVIEW_EVIDENCE.md`
 
+Evidence files are checked for freshness with a default max age of 30 days:
+
+```bash
+ai-security-rules deploy-gate /path/to/repo --evidence-max-age-days 14 --output-dir reports
+```
+
 Scan current files plus local git history:
 
 ```bash
@@ -95,6 +103,13 @@ Run opt-in package registry existence checks for npm/PyPI dependencies:
 
 ```bash
 ai-security-rules scan /path/to/repo --registry-check --output-dir reports
+```
+
+Copy integration templates into another repository:
+
+```bash
+cp templates/pre-commit-config.yaml /path/to/repo/.pre-commit-config.yaml
+cp templates/github-actions-ai-gate.yml /path/to/repo/.github/workflows/ai-gate.yml
 ```
 
 The legacy form is also supported:
@@ -160,9 +175,11 @@ Reviewed false positives can be tuned with a JSON file containing `allowed_false
 - backend proxy and secret ownership before provider integration
 - agent/rules/MCP files treated as code
 - MCP server allowlist before agent execution
+- prompt-injection and invisible-character checks for agent-readable files
 - package runner and dependency reputation evidence before install or release
 - SAST/code-security evidence before deployment
 - gitleaks/trufflehog or equivalent secret-scan evidence before deployment
+- fresh evidence dates, and optional `commit_sha` matching when evidence records a SHA
 - default-deny public export manifest before publishing
 - closeout evidence after security-relevant changes
 

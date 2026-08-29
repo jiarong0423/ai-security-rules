@@ -14,6 +14,11 @@ Status: ready for initial GitHub repository import.
 - MCP server allowlist manifest gate via `MCP_SERVER_ALLOWLIST.md` or `mcp-server-allowlist.json`.
 - Pre-design threat model gate via `SECURITY_THREAT_MODEL.md` or `THREAT_MODEL.md`.
 - Local project development constitution: `LOCAL_PROJECT_SECURITY_CONSTITUTION.md`.
+- Prompt-injection and invisible-character scanning for agent-readable files.
+- MCP over-privilege scanning for `sudo`, root scope, home-directory scope, destructive permissions, and wildcard network access.
+- Evidence freshness gate with configurable `--evidence-max-age-days`.
+- Copy-ready integration templates under `templates/`.
+- IDE extension integration contract under `integrations/`.
 - Optional false-positive tuning via `--tuning`, limited to low/medium/info findings.
 - Optional npm/PyPI package existence checks via `--registry-check`; disabled by default.
 - Bundled rules: `src/ai_security_rules/rules/security_design_gate_rules.json`.
@@ -33,7 +38,7 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m unittest discover -s tests
 Result:
 
 ```text
-Ran 13 tests
+Ran 16 tests
 OK
 ```
 

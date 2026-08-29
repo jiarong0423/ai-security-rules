@@ -2,6 +2,8 @@
 
 Status: pass for current repository scope.
 
+Review Date: 2026-08-30.
+
 ## Scope
 
 - `pyproject.toml`

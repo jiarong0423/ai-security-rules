@@ -70,6 +70,22 @@ EXCLUDED_FILE_SUFFIXES = {
 MAX_FILE_BYTES = 2_000_000
 MAX_TEXT_CHARS = 250_000
 REGISTRY_TIMEOUT_SECONDS = 5
+DEFAULT_EVIDENCE_MAX_AGE_DAYS = 30
+
+INVISIBLE_CHAR_PATTERN = re.compile(r"[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]")
+PROMPT_INJECTION_PATTERNS = [
+    ("ignore_previous_instructions", re.compile(r"\b(ignore|disregard|override)\b.{0,80}\b(previous|above|system|developer)\b.{0,40}\binstruction", re.I)),
+    ("secret_exfiltration_instruction", re.compile(r"\b(reveal|print|dump|exfiltrate|send)\b.{0,80}\b(secret|token|credential|api[_-]?key|private key)\b", re.I)),
+    ("hidden_instruction_marker", re.compile(r"\b(hidden|covert|invisible|do not tell|do not mention)\b.{0,80}\b(instruction|prompt|rule|policy)\b", re.I)),
+    ("tool_bypass_instruction", re.compile(r"\b(bypass|disable|skip)\b.{0,80}\b(approval|sandbox|permission|policy|gate)\b", re.I)),
+]
+MCP_OVERPRIVILEGE_PATTERNS = [
+    ("sudo_command", re.compile(r"\bsudo\b")),
+    ("destructive_permission", re.compile(r"\b(chmod\s+777|chown\s+-R|rm\s+-rf)\b", re.I)),
+    ("root_filesystem_scope", re.compile(r"(^|[\"'\s])/(?:[\"'\s]|$)")),
+    ("home_directory_scope", re.compile(r"(/Users/|\$HOME|~[/\\])")),
+    ("wildcard_network_scope", re.compile(r"(\*://\*|\*\.|0\.0\.0\.0/0|allow[_-]?all|all[_-]?domains)", re.I)),
+]
 
 AGENT_CONFIG_NAMES = {
     ".mcp.json",
@@ -596,6 +612,79 @@ def scan_package_risk(path: Path, root: Path, text: str) -> list[Finding]:
     return findings
 
 
+def scan_prompt_injection(path: Path, root: Path, text: str) -> list[Finding]:
+    findings: list[Finding] = []
+    if not is_agent_config(path):
+        return findings
+    rel = safe_relative(path, root)
+    invisible_matches = list(INVISIBLE_CHAR_PATTERN.finditer(text))
+    if invisible_matches:
+        findings.append(
+            Finding(
+                severity="high",
+                category="prompt_injection_surface",
+                file=rel,
+                line=line_number_for_offset(text, invisible_matches[0].start()),
+                title="Invisible or bidirectional control character in agent-readable file",
+                evidence=f"invisible_or_bidi_chars={len(invisible_matches)}",
+                recommendation="Remove hidden Unicode control characters before allowing an agent to read this file.",
+            )
+        )
+    for label, pattern in PROMPT_INJECTION_PATTERNS:
+        for match in pattern.finditer(text):
+            line_no = line_number_for_offset(text, match.start())
+            findings.append(
+                Finding(
+                    severity="high",
+                    category="prompt_injection_surface",
+                    file=rel,
+                    line=line_no,
+                    title=f"Prompt-injection style instruction indicator: {label}",
+                    evidence=redact_line(line_at(text, line_no)),
+                    recommendation="Review agent-readable instructions for malicious override, exfiltration, or policy-bypass behavior.",
+                )
+            )
+            break
+    return findings
+
+
+def scan_mcp_overprivilege(path: Path, root: Path, text: str) -> list[Finding]:
+    if path.name not in {".mcp.json", "mcp.json", "mcp.config.json"} and ".mcp" not in Path(safe_relative(path, root)).parts:
+        return []
+    findings: list[Finding] = []
+    rel = safe_relative(path, root)
+    try:
+        json.loads(text)
+    except json.JSONDecodeError:
+        findings.append(
+            Finding(
+                severity="medium",
+                category="mcp_config_validation",
+                file=rel,
+                line=None,
+                title="MCP configuration is not valid JSON",
+                evidence="JSON parsing failed.",
+                recommendation="Fix MCP JSON before allowing tools to load this configuration.",
+            )
+        )
+    for label, pattern in MCP_OVERPRIVILEGE_PATTERNS:
+        for match in pattern.finditer(text):
+            line_no = line_number_for_offset(text, match.start())
+            findings.append(
+                Finding(
+                    severity="high",
+                    category="mcp_overprivileged_config",
+                    file=rel,
+                    line=line_no,
+                    title=f"Over-privileged MCP configuration indicator: {label}",
+                    evidence=redact_line(line_at(text, line_no)),
+                    recommendation="Constrain MCP server permissions, filesystem scope, network scope, and command allowlists before agent execution.",
+                )
+            )
+            break
+    return findings
+
+
 def parse_python_requirement(line: str) -> str | None:
     stripped = line.strip()
     if not stripped or stripped.startswith("#") or stripped.startswith(("-", ".")):
@@ -1106,6 +1195,70 @@ def project_has_threat_model(root: Path) -> bool:
     return False
 
 
+def evidence_doc_names() -> set[str]:
+    return (
+        SAST_EVIDENCE_DOC_NAMES
+        | SECRET_SCAN_EVIDENCE_DOC_NAMES
+        | PACKAGE_REPUTATION_EVIDENCE_DOC_NAMES
+        | MCP_ALLOWLIST_MANIFEST_NAMES
+        | THREAT_MODEL_DOC_NAMES
+        | PUBLIC_EXPORT_MANIFEST_NAMES
+    )
+
+
+def current_git_head(root: Path) -> str | None:
+    if not is_git_work_tree(root):
+        return None
+    result = run_git(root, ["rev-parse", "HEAD"])
+    if result.returncode != 0 or not isinstance(result.stdout, str):
+        return None
+    value = result.stdout.strip()
+    if re.fullmatch(r"[0-9a-f]{40}", value):
+        return value
+    return None
+
+
+def latest_date_in_text(text: str) -> dt.date | None:
+    dates: list[dt.date] = []
+    for match in re.finditer(r"\b(20\d{2}-\d{2}-\d{2})\b", text):
+        try:
+            dates.append(dt.date.fromisoformat(match.group(1)))
+        except ValueError:
+            continue
+    if not dates:
+        return None
+    return max(dates)
+
+
+def commit_sha_in_text(text: str) -> str | None:
+    match = re.search(r"\bcommit_sha\s*[:=]\s*([0-9a-f]{40})\b", text, re.I)
+    if match:
+        return match.group(1).lower()
+    return None
+
+
+def evidence_freshness_issues(root: Path, max_age_days: int) -> list[str]:
+    issues: list[str] = []
+    today = dt.datetime.now(dt.timezone.utc).date()
+    head = current_git_head(root)
+    for path in iter_files(root):
+        if path.name not in evidence_doc_names():
+            continue
+        text = read_text_file(path)
+        if text is None:
+            continue
+        rel = safe_relative(path, root)
+        latest = latest_date_in_text(text)
+        if latest is None:
+            issues.append(f"{rel}: no YYYY-MM-DD evidence date")
+        elif (today - latest).days > max_age_days:
+            issues.append(f"{rel}: evidence date {latest.isoformat()} exceeds {max_age_days} days")
+        recorded_sha = commit_sha_in_text(text)
+        if recorded_sha and head and recorded_sha != head:
+            issues.append(f"{rel}: commit_sha does not match current HEAD")
+    return issues
+
+
 def load_gate_rules(path: Path) -> dict[str, Any]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -1157,7 +1310,7 @@ def make_gate_finding(
     )
 
 
-def evaluate_project_gates(report: ProjectReport, rules: dict[str, Any], mode: str) -> list[GateFinding]:
+def evaluate_project_gates(report: ProjectReport, rules: dict[str, Any], mode: str, evidence_max_age_days: int) -> list[GateFinding]:
     root = Path(report.summary.target)
     findings = report.findings
     gate_findings: list[GateFinding] = []
@@ -1363,6 +1516,17 @@ def evaluate_project_gates(report: ProjectReport, rules: dict[str, Any], mode: s
                     "Release-relevant surface detected, but no gitleaks/trufflehog/secret-scan evidence document was found.",
                 )
             )
+        freshness_issues = evidence_freshness_issues(root, evidence_max_age_days)
+        if freshness_issues:
+            gate_findings.append(
+                make_gate_finding(
+                    rules,
+                    report,
+                    "pre_deploy",
+                    "stale_or_mismatched_security_evidence",
+                    "; ".join(freshness_issues[:5]),
+                )
+            )
 
     return gate_findings
 
@@ -1437,6 +1601,8 @@ def scan_project(root: Path) -> tuple[ScanSummary, list[Finding]]:
             continue
         files_scanned += 1
         findings.extend(scan_agent_config(path, root, text))
+        findings.extend(scan_prompt_injection(path, root, text))
+        findings.extend(scan_mcp_overprivilege(path, root, text))
         findings.extend(scan_secrets(path, root, text))
         findings.extend(scan_package_risk(path, root, text))
 
@@ -1851,6 +2017,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help="Opt-in network check for npm/PyPI package existence. Does not install or execute packages.",
     )
+    parser.add_argument(
+        "--evidence-max-age-days",
+        type=int,
+        default=DEFAULT_EVIDENCE_MAX_AGE_DAYS,
+        help="Maximum accepted age for dated evidence documents in deploy-gate/rules-check.",
+    )
     return parser.parse_args(argv)
 
 
@@ -1916,9 +2088,12 @@ def main(argv: list[str] | None = None) -> int:
         except ValueError as exc:
             print(str(exc), file=sys.stderr)
             return 2
+        if args.evidence_max_age_days < 0:
+            print("--evidence-max-age-days must be non-negative.", file=sys.stderr)
+            return 2
         gate_findings: list[GateFinding] = []
         for report in reports:
-            gate_findings.extend(evaluate_project_gates(report, rules, args.mode))
+            gate_findings.extend(evaluate_project_gates(report, rules, args.mode, args.evidence_max_age_days))
         gate_summary = build_gate_summary(args.mode, rules_path, gate_findings, reports)
         gate_json_path, gate_md_path = write_gate_outputs(output_dir, gate_summary, gate_findings)
         print(f"Gate JSON report: {gate_json_path}")

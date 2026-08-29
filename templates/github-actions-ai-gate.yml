@@ -1,0 +1,27 @@
+name: ai-security-rules
+
+on:
+  pull_request:
+  push:
+    branches: ["main"]
+
+jobs:
+  ai-security-rules:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install ai-security-rules
+        run: python3 -m pip install ai-security-rules
+      - name: Current tree scan
+        run: ai-security-rules scan . --output-dir reports/ai-security-rules
+      - name: Git history scan
+        run: ai-security-rules history-scan . --output-dir reports/ai-security-rules
+      - name: Full rules gate
+        run: ai-security-rules rules-check . --output-dir reports/ai-security-rules
