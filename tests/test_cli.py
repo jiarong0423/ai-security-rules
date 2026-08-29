@@ -205,6 +205,26 @@ dev = [
             }
             self.assertIn("prompt_injection_surface", categories)
 
+    def test_redacted_test_secret_fixture_is_not_critical(self) -> None:
+        with tempfile.TemporaryDirectory() as root_dir, tempfile.TemporaryDirectory() as report_dir:
+            root = Path(root_dir)
+            tests_dir = root / "tests"
+            tests_dir.mkdir()
+            (tests_dir / "test_fixture.py").write_text(
+                'SAMPLE = "-----BEGIN PRIVATE KEY-----\\nredacted\\n-----END PRIVATE KEY-----"\n',
+                encoding="utf-8",
+            )
+            result = run_cli("scan", str(root), "--output-dir", report_dir)
+            self.assertEqual(result.returncode, 0)
+            payload = json.loads((Path(report_dir) / "local_ai_security_portfolio_report.json").read_text(encoding="utf-8"))
+            self.assertEqual(payload["portfolio"]["critical"], 0)
+            categories = {
+                finding["category"]
+                for project in payload["projects"]
+                for finding in project["findings"]
+            }
+            self.assertIn("synthetic_secret_fixture", categories)
+
     def test_mcp_overprivileged_command_is_high(self) -> None:
         with tempfile.TemporaryDirectory() as root_dir, tempfile.TemporaryDirectory() as report_dir:
             root = Path(root_dir)
@@ -253,6 +273,23 @@ dev = [
             self.assertEqual(result.returncode, 0, result.stderr)
             gate = json.loads((Path(report_dir) / "local_security_design_gate_deploy_gate.json").read_text(encoding="utf-8"))
             self.assertEqual(gate["summary"]["decision"], "pass")
+
+    def test_agent_review_writes_remediation_queue(self) -> None:
+        with tempfile.TemporaryDirectory() as root_dir, tempfile.TemporaryDirectory() as report_dir:
+            root = Path(root_dir)
+            (root / "main.py").write_text("print('hello')\n", encoding="utf-8")
+            result = run_cli("agent-review", str(root), "--output-dir", report_dir)
+            self.assertEqual(result.returncode, 1)
+            queue_path = Path(report_dir) / "agentic_security_review_queue.json"
+            self.assertTrue(queue_path.exists())
+            payload = json.loads(queue_path.read_text(encoding="utf-8"))
+            self.assertEqual(payload["summary"]["decision"], "fail")
+            lanes = {item["lane"] for item in payload["queue"]}
+            rules = {item["rule_or_category"] for item in payload["queue"]}
+            self.assertIn("pre_development_management", lanes)
+            self.assertIn("release_evidence_control", lanes)
+            self.assertIn("missing_pre_design_threat_model", rules)
+            self.assertIn("missing_sast_or_code_security_scan", rules)
 
     def test_tuning_suppresses_reviewed_medium_findings(self) -> None:
         with tempfile.TemporaryDirectory() as root_dir, tempfile.TemporaryDirectory() as report_dir:

@@ -57,6 +57,19 @@ Run the full rule gate before opening a repository to an agent or before release
 ai-security-rules rules-check /path/to/repo --output-dir reports
 ```
 
+Generate an agent-ready remediation queue for pre-development management, open-source pollution control, hallucination/supply-chain review, and release evidence:
+
+```bash
+ai-security-rules agent-review /path/to/repo --output-dir reports
+```
+
+`agent-review` runs the same read-only scan and rule gate, then writes:
+
+- `agentic_security_review_queue.json`
+- `agentic_security_review_queue.md`
+
+The queue is designed for AI-assisted teams: P0/P1 items block automatic agent execution, public export, or deployment until the required control evidence exists.
+
 For source-code projects, `rules-check` also expects SAST or equivalent code-security evidence before deployment. The scanner does not run SAST itself; it checks that evidence exists in one of:
 
 - `SECURITY_SCAN_EVIDENCE.md`
@@ -132,10 +145,26 @@ The scanner writes:
 - `local_ai_security_portfolio_report.md`
 - `local_ai_security_scan_XX_<project>.md`
 
+`agent-review` also writes:
+
+- `agentic_security_review_queue.json`
+- `agentic_security_review_queue.md`
+
 Gate modes also write:
 
 - `local_security_design_gate_<mode>.json`
 - `local_security_design_gate_<mode>.md`
+
+## Hackathon Delivery
+
+This repository includes submission support material:
+
+- `DEVPOST_SUBMISSION_DRAFT.md`
+- `HACKATHON_DISCLOSURE.md`
+- `HACKATHON_RULE_FIT.md`
+- `DEMO_SCRIPT.md`
+
+For hackathons that require substantial new work, disclose this repository as pre-existing open-source baseline and submit the agentic review workflow as the new judged functionality.
 
 ## Rules
 
@@ -182,6 +211,13 @@ Reviewed false positives can be tuned with a JSON file containing `allowed_false
 - fresh evidence dates, and optional `commit_sha` matching when evidence records a SHA
 - default-deny public export manifest before publishing
 - closeout evidence after security-relevant changes
+
+## Who Should Use This
+
+- AI-agent-assisted development teams using Cursor, Claude Code, GitHub Copilot, Codex, Gemini CLI, MCP servers, `AGENTS.md`, `SKILL.md`, or repo-level AI rules.
+- DevSecOps and security engineers who want an AI-workflow gate in CI/CD while keeping SAST, secret scanning, and dependency scanning as separate evidence layers.
+- Open-source maintainers and product teams that need to prevent accidental public export of credentials, private proof material, scratch output, or unreviewed scripts.
+- Teams with compliance or governance requirements that need pre-design security review before provider integrations, agent execution, dependency changes, export, or deployment.
 
 ## Design Philosophy
 

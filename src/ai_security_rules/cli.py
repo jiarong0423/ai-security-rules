@@ -278,6 +278,32 @@ class GateSummary:
 
 
 @dataclass
+class AgentReviewItem:
+    priority: str
+    lane: str
+    target: str
+    source: str
+    rule_or_category: str
+    title: str
+    evidence: str
+    required_action: str
+    agent_action_allowed: str
+
+
+@dataclass
+class AgentReviewSummary:
+    mode: str
+    generated_at: str
+    projects_evaluated: int
+    queue_items_total: int
+    p0: int
+    p1: int
+    p2: int
+    p3: int
+    decision: str
+
+
+@dataclass
 class PortfolioSummary:
     generated_at: str
     targets_requested: list[str]
@@ -594,11 +620,17 @@ def scan_secrets(path: Path, root: Path, text: str) -> list[Finding]:
     for label, pattern in SECRET_PATTERNS:
         for match in pattern.finditer(text):
             line_no = line_number_for_offset(text, match.start())
+            source_line = line_at(text, line_no)
             digest = hashlib.sha256(match.group(0).encode("utf-8", errors="ignore")).hexdigest()[:12]
             severity = "critical" if label != "generic_assignment" else "high"
             category = "secret_exposure"
             title = f"Potential secret exposure: {label}"
             recommendation = "Do not commit literal secrets. Move secrets to env vars or a secret manager, rotate exposed values, and scan git history."
+            if is_synthetic_test_secret_fixture(rel, source_line):
+                severity = "medium"
+                category = "synthetic_secret_fixture"
+                title = f"Synthetic secret fixture: {label}"
+                recommendation = "Keep test fixtures obviously synthetic and redacted. Do not place real provider credentials in tests."
             if contained_local_runtime_secret and severity == "critical":
                 severity = "high"
                 category = "local_runtime_secret"
@@ -616,6 +648,15 @@ def scan_secrets(path: Path, root: Path, text: str) -> list[Finding]:
                 )
             )
     return findings
+
+
+def is_synthetic_test_secret_fixture(rel_path: str, source_line: str) -> bool:
+    parts = set(Path(rel_path).parts)
+    if "tests" not in parts and "test" not in parts:
+        return False
+    lowered = source_line.lower()
+    markers = {"redacted", "placeholder", "synthetic", "fake_secret", "must_not_appear"}
+    return any(marker in lowered for marker in markers)
 
 
 def scan_package_risk(path: Path, root: Path, text: str) -> list[Finding]:
@@ -2026,13 +2067,185 @@ def write_gate_outputs(output_dir: Path, summary: GateSummary, gate_findings: li
     return json_path, md_path
 
 
+def gate_lane(stage: str, rule_id: str) -> str:
+    if stage == "pre_public_export" or rule_id.startswith("public_export"):
+        return "open_source_pollution_control"
+    if stage == "pre_dependency" or "package" in rule_id or "hallucination" in rule_id:
+        return "hallucination_and_supply_chain_control"
+    if stage in {"pre_design", "pre_implementation", "pre_agent_run"}:
+        return "pre_development_management"
+    if stage == "pre_deploy":
+        return "release_evidence_control"
+    return "general_security_governance"
+
+
+def finding_lane(finding: Finding) -> str:
+    if finding.category in {"package_hallucination_or_slopsquatting", "package_runner", "registry_validation"}:
+        return "hallucination_and_supply_chain_control"
+    if finding.category in {"secret_exposure", "local_runtime_secret", "git_history_secret_exposure", "git_history_sensitive_file"}:
+        return "open_source_pollution_control"
+    if finding.category in {"agent_config", "repo_borne_executable_config", "prompt_injection_surface", "mcp_overprivileged_config"}:
+        return "pre_development_management"
+    return "general_security_governance"
+
+
+def priority_from_severity(severity: str) -> str:
+    if severity in {"critical", "P0"}:
+        return "P0"
+    if severity in {"high", "P1"}:
+        return "P1"
+    if severity in {"medium", "P2"}:
+        return "P2"
+    return "P3"
+
+
+def agent_action_boundary(priority: str, lane: str) -> str:
+    if priority == "P0":
+        return "agent_may_prepare_patch_or_manifest_only_human_must_approve_release"
+    if lane == "open_source_pollution_control":
+        return "agent_may_update_export_manifest_but_must_not_delete_or_publish"
+    if lane == "hallucination_and_supply_chain_control":
+        return "agent_may_collect_static_evidence_registry_check_is_explicit_opt_in"
+    return "agent_may_prepare_low_risk_governance_patch"
+
+
+def build_agent_review_items(reports: list[ProjectReport], gate_findings: list[GateFinding]) -> list[AgentReviewItem]:
+    items: list[AgentReviewItem] = []
+    seen: set[tuple[str, str, str, str]] = set()
+    for gate in gate_findings:
+        priority = priority_from_severity(gate.severity)
+        lane = gate_lane(gate.stage, gate.rule_id)
+        marker = (gate.target, "gate", gate.rule_id, gate.evidence)
+        if marker in seen:
+            continue
+        seen.add(marker)
+        items.append(
+            AgentReviewItem(
+                priority=priority,
+                lane=lane,
+                target=gate.target,
+                source="gate",
+                rule_or_category=gate.rule_id,
+                title=gate.title,
+                evidence=gate.evidence,
+                required_action=gate.required_control,
+                agent_action_allowed=agent_action_boundary(priority, lane),
+            )
+        )
+    for report in reports:
+        for finding in report.findings:
+            priority = priority_from_severity(finding.severity)
+            if priority == "P3":
+                continue
+            lane = finding_lane(finding)
+            marker = (report.summary.target, "scan", finding.category, f"{finding.file}:{finding.line}:{finding.title}")
+            if marker in seen:
+                continue
+            seen.add(marker)
+            items.append(
+                AgentReviewItem(
+                    priority=priority,
+                    lane=lane,
+                    target=report.summary.target,
+                    source="scan",
+                    rule_or_category=finding.category,
+                    title=finding.title,
+                    evidence=f"{finding.file}:{finding.line or ''} {finding.evidence}",
+                    required_action=finding.recommendation,
+                    agent_action_allowed=agent_action_boundary(priority, lane),
+                )
+            )
+    priority_order = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
+    items.sort(key=lambda item: (priority_order.get(item.priority, 9), item.lane, item.target, item.rule_or_category, item.title))
+    return items
+
+
+def build_agent_review_summary(reports: list[ProjectReport], items: list[AgentReviewItem]) -> AgentReviewSummary:
+    counts = {"P0": 0, "P1": 0, "P2": 0, "P3": 0}
+    for item in items:
+        counts[item.priority] = counts.get(item.priority, 0) + 1
+    decision = "fail" if counts["P0"] or counts["P1"] else "pass"
+    return AgentReviewSummary(
+        mode="agent-review",
+        generated_at=dt.datetime.now(dt.timezone.utc).isoformat(),
+        projects_evaluated=len(reports),
+        queue_items_total=len(items),
+        p0=counts["P0"],
+        p1=counts["P1"],
+        p2=counts["P2"],
+        p3=counts["P3"],
+        decision=decision,
+    )
+
+
+def markdown_agent_review(summary: AgentReviewSummary, items: list[AgentReviewItem]) -> str:
+    lines: list[str] = []
+    lines.append("# Agentic Security Review Queue")
+    lines.append("")
+    lines.append(f"- Mode: `{summary.mode}`")
+    lines.append(f"- Generated UTC: `{summary.generated_at}`")
+    lines.append(f"- Projects evaluated: `{summary.projects_evaluated}`")
+    lines.append(f"- Queue items: `{summary.queue_items_total}`")
+    lines.append(f"- Priority: P0 `{summary.p0}`, P1 `{summary.p1}`, P2 `{summary.p2}`, P3 `{summary.p3}`")
+    lines.append(f"- Decision: `{summary.decision}`")
+    lines.append("")
+    lines.append("## Lanes")
+    lines.append("")
+    lines.append("| Lane | Meaning |")
+    lines.append("|---|---|")
+    lines.append("| `pre_development_management` | Block risky AI-agent work before design, implementation, MCP/tool use, or workspace trust. |")
+    lines.append("| `open_source_pollution_control` | Prevent secrets, private evidence, scratch output, or unclassified files from entering public repos or exports. |")
+    lines.append("| `hallucination_and_supply_chain_control` | Verify package names, runners, registries, maintainers, and lockfile evidence before install or agent execution. |")
+    lines.append("| `release_evidence_control` | Require SAST, secret-scan, package reputation, and fresh evidence before deployment. |")
+    lines.append("")
+    lines.append("## Queue")
+    lines.append("")
+    if not items:
+        lines.append("No remediation item was generated from the current scan and gate rules.")
+        lines.append("")
+    else:
+        lines.append("| Priority | Lane | Source | Target | Rule/category | Evidence | Required action | Agent boundary |")
+        lines.append("|---|---|---|---|---|---|---|---|")
+        for item in items:
+            target = item.target.replace("|", "\\|")
+            evidence = item.evidence.replace("|", "\\|")
+            title = item.title.replace("|", "\\|")
+            action = item.required_action.replace("|", "\\|")
+            boundary = item.agent_action_allowed.replace("|", "\\|")
+            lines.append(
+                f"| {item.priority} | `{item.lane}` | {item.source} | `{target}` | `{item.rule_or_category}`: {title} | `{evidence}` | {action} | `{boundary}` |"
+            )
+        lines.append("")
+    lines.append("## Plain-language Decision")
+    lines.append("")
+    if summary.decision == "fail":
+        lines.append("這份佇列代表目前不能直接讓 AI agent 自動跑完整開發、公開匯出或部署。先清掉 P0/P1，再讓 agent 處理 P2 文件化與低風險補強。")
+    else:
+        lines.append("這份佇列沒有 P0/P1 阻擋項，可以進入下一階段；但正式發布仍要保留外部 SAST、secret scan、dependency scan 證據。")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def write_agent_review_outputs(output_dir: Path, summary: AgentReviewSummary, items: list[AgentReviewItem]) -> tuple[Path, Path]:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    json_path = output_dir / "agentic_security_review_queue.json"
+    md_path = output_dir / "agentic_security_review_queue.md"
+    payload = {
+        "summary": asdict(summary),
+        "queue": [asdict(item) for item in items],
+    }
+    json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    md_path.write_text(markdown_agent_review(summary, items), encoding="utf-8")
+    return json_path, md_path
+
+
 def default_rules_path() -> Path:
     return Path(__file__).resolve().parent / "rules" / "security_design_gate_rules.json"
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Read-only local AI coding security portfolio scanner")
-    modes = {"scan", "quick", "deep", "history-scan", "pre-design", "rules-check", "export-gate", "deploy-gate"}
+    modes = {"scan", "quick", "deep", "history-scan", "pre-design", "rules-check", "export-gate", "deploy-gate", "agent-review"}
     if argv and argv[0] in modes:
         mode = argv[0]
         argv = argv[1:]
@@ -2042,9 +2255,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--output-dir", default=".", help="Directory for JSON and Markdown reports")
     parser.add_argument(
         "--mode",
-        choices=["scan", "quick", "deep", "history-scan", "pre-design", "rules-check", "export-gate", "deploy-gate"],
+        choices=["scan", "quick", "deep", "history-scan", "pre-design", "rules-check", "export-gate", "deploy-gate", "agent-review"],
         default=mode,
-        help="scan writes the original portfolio report; history-scan also inspects git history; gate modes also evaluate blocking design/export rules",
+        help="scan writes the original portfolio report; history-scan also inspects git history; gate modes evaluate blocking rules; agent-review emits an agent remediation queue",
     )
     parser.add_argument(
         "--rules",
@@ -2126,7 +2339,7 @@ def main(argv: list[str] | None = None) -> int:
         f"critical={portfolio.critical} high={portfolio.high} medium={portfolio.medium} "
         f"risk_score={portfolio.risk_score} highest_band={portfolio.highest_risk_band}"
     )
-    if args.mode in {"pre-design", "rules-check", "export-gate", "deploy-gate"}:
+    if args.mode in {"pre-design", "rules-check", "export-gate", "deploy-gate", "agent-review"}:
         try:
             rules = load_gate_rules(rules_path)
         except ValueError as exc:
@@ -2136,9 +2349,10 @@ def main(argv: list[str] | None = None) -> int:
             print("--evidence-max-age-days must be non-negative.", file=sys.stderr)
             return 2
         gate_findings: list[GateFinding] = []
+        gate_mode = "rules-check" if args.mode == "agent-review" else args.mode
         for report in reports:
-            gate_findings.extend(evaluate_project_gates(report, rules, args.mode, args.evidence_max_age_days))
-        gate_summary = build_gate_summary(args.mode, rules_path, gate_findings, reports)
+            gate_findings.extend(evaluate_project_gates(report, rules, gate_mode, args.evidence_max_age_days))
+        gate_summary = build_gate_summary(gate_mode, rules_path, gate_findings, reports)
         gate_json_path, gate_md_path = write_gate_outputs(output_dir, gate_summary, gate_findings)
         print(f"Gate JSON report: {gate_json_path}")
         print(f"Gate Markdown report: {gate_md_path}")
@@ -2147,6 +2361,18 @@ def main(argv: list[str] | None = None) -> int:
             f"mode={gate_summary.mode} decision={gate_summary.decision} "
             f"blocking={gate_summary.blocking_findings} P0={gate_summary.p0} P1={gate_summary.p1} P2={gate_summary.p2}"
         )
+        if args.mode == "agent-review":
+            queue_items = build_agent_review_items(reports, gate_findings)
+            queue_summary = build_agent_review_summary(reports, queue_items)
+            queue_json_path, queue_md_path = write_agent_review_outputs(output_dir, queue_summary, queue_items)
+            print(f"Agent review JSON report: {queue_json_path}")
+            print(f"Agent review Markdown report: {queue_md_path}")
+            print(
+                "Agent review: "
+                f"decision={queue_summary.decision} items={queue_summary.queue_items_total} "
+                f"P0={queue_summary.p0} P1={queue_summary.p1} P2={queue_summary.p2} P3={queue_summary.p3}"
+            )
+            return 1 if queue_summary.decision == "fail" else 0
         return 1 if gate_summary.decision == "fail" else 0
     return 1 if portfolio.critical or portfolio.high else 0
 

@@ -8,6 +8,7 @@ Status: ready for initial GitHub repository import.
 - Console command: `ai-security-rules`.
 - Module command: `python3 -m ai_security_rules`.
 - Modes: `scan`, `history-scan`, `pre-design`, `rules-check`, `export-gate`, `deploy-gate`.
+- Agent review mode: `agent-review`, which emits `agentic_security_review_queue.json` and `agentic_security_review_queue.md`.
 - SAST/code-security evidence gate via `SECURITY_SCAN_EVIDENCE.md`, `SAST_EVIDENCE.md`, or `CODE_SECURITY_EVIDENCE.md`.
 - Git history secret-scan evidence gate via `SECRET_SCAN_EVIDENCE.md`, `GITLEAKS_EVIDENCE.md`, or `TRUFFLEHOG_EVIDENCE.md`.
 - Lockfile/package reputation evidence gate via `PACKAGE_REPUTATION_EVIDENCE.md`.
@@ -22,7 +23,8 @@ Status: ready for initial GitHub repository import.
 - Optional false-positive tuning via `--tuning`, limited to low/medium/info findings.
 - Optional npm/PyPI package existence checks via `--registry-check`; disabled by default.
 - Bundled rules: `src/ai_security_rules/rules/security_design_gate_rules.json`.
-- README with install, usage, reports, exit codes, safety boundaries, and limitations.
+- Devpost submission draft, hackathon disclosure, and demo script.
+- README with install, usage, reports, exit codes, target users, safety boundaries, and limitations.
 - MIT license.
 - GitHub Actions CI.
 - Unit tests with synthetic fixtures only.
@@ -38,7 +40,7 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m unittest discover -s tests
 Result:
 
 ```text
-Ran 16 tests
+Ran 21 tests
 OK
 ```
 
@@ -51,10 +53,23 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m ai_security_rules scan . --o
 Result:
 
 ```text
-critical=0 high=0 medium=22
+critical=0 high=0 medium=50
 ```
 
-The remaining medium findings are expected because the scanner source and README describe shell commands, package runners, install hooks, and permission concepts as rule text.
+The remaining medium findings are expected because the scanner source, tests, demo script, hackathon rule-fit document, and README describe shell commands, package runners, install hooks, synthetic secret fixtures, and permission concepts as rule text.
+
+Agent review self-check:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m ai_security_rules agent-review . --output-dir /private/tmp/ai-security-rules-agent-review-self
+```
+
+Result:
+
+```text
+Gate: mode=rules-check decision=pass blocking=0 P0=0 P1=0 P2=0
+Agent review: decision=pass items=50 P0=0 P1=0 P2=50 P3=0
+```
 
 History self-scan:
 
