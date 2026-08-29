@@ -1,0 +1,110 @@
+{
+  "version": "2026-08-29",
+  "name": "local_security_design_gate_rules",
+  "default_behavior": {
+    "read_env_contents": false,
+    "emit_secret_values": false,
+    "execute_project_commands": false,
+    "modify_target_project": false,
+    "network_required": false
+  },
+  "stages": [
+    {
+      "id": "pre_design",
+      "blocks": [
+        {
+          "id": "frontend_provider_secret",
+          "severity": "P0",
+          "rule": "Frontend or browser-readable code must not hold third-party provider secrets.",
+          "required_control": "Use backend proxy with session/JWT/role validation."
+        },
+        {
+          "id": "missing_backend_proxy",
+          "severity": "P1",
+          "rule": "Any feature needing OpenAI, Gemini, Anthropic, payment, cloud, Notion, GitHub, email, or storage secrets must define a protected backend proxy before implementation.",
+          "required_control": "Document backend route, auth check, secret source, audit/rotation path."
+        },
+        {
+          "id": "missing_secret_owner",
+          "severity": "P1",
+          "rule": "Every secret must have an owner, storage location, rotation path, and revoke path.",
+          "required_control": "Record secret name or env name only; never record value."
+        }
+      ]
+    },
+    {
+      "id": "pre_implementation",
+      "blocks": [
+        {
+          "id": "hidden_agent_config_not_reviewed",
+          "severity": "P1",
+          "rule": "Before agent work, hidden config directories and agent-readable files must be reviewed.",
+          "required_control": "Scan .claude, .cursor, .gemini, .vscode, .mcp.json, AGENTS.md, CLAUDE.md, SKILL.md."
+        },
+        {
+          "id": "env_content_read_attempt",
+          "severity": "P0",
+          "rule": ".env and .env.* contents must not be read by default.",
+          "required_control": "Inventory filename only."
+        }
+      ]
+    },
+    {
+      "id": "pre_dependency",
+      "blocks": [
+        {
+          "id": "unverified_package_runner",
+          "severity": "P1",
+          "rule": "npx, bunx, pnpm dlx, yarn dlx, pip install, uv pip, and poetry add targets must be verified before execution.",
+          "required_control": "Check official package name, registry owner, publish time, lockfile diff, and known hallucination watchlist."
+        },
+        {
+          "id": "hallucination_watchlist_hit",
+          "severity": "P1",
+          "rule": "Known hallucination or slopsquatting names require manual review.",
+          "watchlist": ["huggingface-cli", "react-codeshift", "unused-imports"],
+          "required_control": "Do not execute until verified."
+        }
+      ]
+    },
+    {
+      "id": "pre_agent_run",
+      "blocks": [
+        {
+          "id": "mcp_or_agent_shell_without_allowlist",
+          "severity": "P1",
+          "rule": "Project-level MCP or agent config must not start shell/process/package runner without allowlist.",
+          "required_control": "Require explicit command allowlist and operator approval."
+        }
+      ]
+    },
+    {
+      "id": "pre_public_export",
+      "blocks": [
+        {
+          "id": "public_export_secret_material",
+          "severity": "P0",
+          "rule": "Public export must not contain .env*, credentials, service_account.json, private keys, tokens, raw proof, private logs, or unreviewed scripts.",
+          "required_control": "Use allowlist packaging and secret scan."
+        },
+        {
+          "id": "public_export_unclassified_artifact",
+          "severity": "P1",
+          "rule": "Every exported path must be classified as public-export allowed.",
+          "required_control": "Maintain active/archive/scratch/public-export manifest."
+        }
+      ]
+    },
+    {
+      "id": "pre_deploy",
+      "blocks": [
+        {
+          "id": "public_endpoint_without_auth_or_rate_gate",
+          "severity": "P1",
+          "rule": "Public deployment must have endpoint exposure review, auth/session boundary, rate/quota/budget gate, and secret scan.",
+          "required_control": "Record deployment gate evidence before public exposure."
+        }
+      ]
+    }
+  ]
+}
