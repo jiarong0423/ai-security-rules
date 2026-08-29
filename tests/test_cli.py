@@ -52,6 +52,32 @@ class CliTests(unittest.TestCase):
             gate = json.loads((Path(report_dir) / "local_security_design_gate_pre_design.json").read_text(encoding="utf-8"))
             self.assertEqual(gate["summary"]["decision"], "pass")
 
+    def test_history_scan_redacts_secret_values(self) -> None:
+        with tempfile.TemporaryDirectory() as root_dir, tempfile.TemporaryDirectory() as report_dir:
+            root = Path(root_dir)
+            subprocess.run(["git", "init"], cwd=root, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
+            subprocess.run(["git", "config", "user.name", "Test User"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.email", "test@example.invalid"], cwd=root, check=True)
+            fake_secret = "sk-" + ("A" * 32)
+            (root / "client.js").write_text("const value = '" + fake_secret + "';\n", encoding="utf-8")
+            subprocess.run(["git", "add", "client.js"], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-m", "add synthetic secret"], cwd=root, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
+            (root / "client.js").write_text("const token = process.env.OPENAI_API_KEY;\n", encoding="utf-8")
+            subprocess.run(["git", "add", "client.js"], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-m", "remove synthetic secret"], cwd=root, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
+
+            result = run_cli("history-scan", str(root), "--output-dir", report_dir)
+            self.assertEqual(result.returncode, 1)
+            report = (Path(report_dir) / "local_ai_security_portfolio_report.json").read_text(encoding="utf-8")
+            self.assertNotIn(fake_secret, report)
+            payload = json.loads(report)
+            categories = {
+                finding["category"]
+                for project in payload["projects"]
+                for finding in project["findings"]
+            }
+            self.assertIn("git_history_secret_exposure", categories)
+
 
 if __name__ == "__main__":
     unittest.main()

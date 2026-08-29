@@ -7,6 +7,7 @@ Status: ready for initial GitHub repository import.
 - Python package under `src/ai_security_rules/`.
 - Console command: `ai-security-rules`.
 - Module command: `python3 -m ai_security_rules`.
+- Modes: `scan`, `history-scan`, `pre-design`, `rules-check`, `export-gate`.
 - Bundled rules: `src/ai_security_rules/rules/security_design_gate_rules.json`.
 - README with install, usage, reports, exit codes, safety boundaries, and limitations.
 - MIT license.
@@ -24,7 +25,7 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m unittest discover -s tests
 Result:
 
 ```text
-Ran 3 tests
+Ran 4 tests
 OK
 ```
 
@@ -37,10 +38,22 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m ai_security_rules scan . --o
 Result:
 
 ```text
-critical=0 high=0 medium=18
+critical=0 high=0 medium=22
 ```
 
 The remaining medium findings are expected because the scanner source and README describe shell commands, package runners, install hooks, and permission concepts as rule text.
+
+History self-scan:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m ai_security_rules history-scan . --output-dir /private/tmp/ai-security-rules-v02-history-2
+```
+
+Result:
+
+```text
+critical=0 high=0 medium=22
+```
 
 Sanitization check:
 

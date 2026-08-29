@@ -20,6 +20,7 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -934,6 +935,120 @@ def scan_project(root: Path) -> tuple[ScanSummary, list[Finding]]:
     return summary, findings
 
 
+def run_git(root: Path, args: list[str], *, binary: bool = False) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[bytes]:
+    return subprocess.run(
+        ["git", "-C", str(root), *args],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=not binary,
+        check=False,
+    )
+
+
+def is_git_work_tree(root: Path) -> bool:
+    result = run_git(root, ["rev-parse", "--is-inside-work-tree"])
+    return result.returncode == 0 and isinstance(result.stdout, str) and result.stdout.strip() == "true"
+
+
+def git_blob_size(root: Path, object_name: str) -> int | None:
+    result = run_git(root, ["cat-file", "-s", object_name])
+    if result.returncode != 0 or not isinstance(result.stdout, str):
+        return None
+    try:
+        return int(result.stdout.strip())
+    except ValueError:
+        return None
+
+
+def git_blob_bytes(root: Path, object_name: str) -> bytes | None:
+    result = run_git(root, ["show", object_name], binary=True)
+    if result.returncode != 0 or not isinstance(result.stdout, bytes):
+        return None
+    return result.stdout
+
+
+def scan_git_history(root: Path) -> list[Finding]:
+    findings: list[Finding] = []
+    if not is_git_work_tree(root):
+        return findings
+
+    log_result = run_git(root, ["log", "--all", "--format=commit:%H", "--name-only", "--"])
+    if log_result.returncode != 0 or not isinstance(log_result.stdout, str):
+        findings.append(
+            Finding(
+                severity="low",
+                category="git_history_scan",
+                file=str(root),
+                line=None,
+                title="Git history scan could not read commit file list",
+                evidence="git log returned a non-zero status.",
+                recommendation="Run the scanner from a valid local git checkout and inspect git command availability.",
+            )
+        )
+        return findings
+
+    current_commit = ""
+    seen_objects: set[tuple[str, str]] = set()
+    for raw_line in log_result.stdout.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if line.startswith("commit:"):
+            current_commit = line.removeprefix("commit:")
+            continue
+        if not current_commit:
+            continue
+        rel = line
+        marker = (current_commit, rel)
+        if marker in seen_objects:
+            continue
+        seen_objects.add(marker)
+        rel_path = Path(rel)
+        file_label = f"{current_commit[:12]}:{rel}"
+        if file_name_has_secret_material(rel_path):
+            findings.append(
+                Finding(
+                    severity="critical",
+                    category="git_history_sensitive_file",
+                    file=file_label,
+                    line=None,
+                    title="Sensitive filename present in git history",
+                    evidence="Sensitive file contents were not read or emitted.",
+                    recommendation="Assume the historical value may be exposed. Rotate affected secrets and rewrite/remove history before public release if required.",
+                )
+            )
+            continue
+        if any(rel_path.name.startswith(prefix) for prefix in EXCLUDED_FILE_PREFIXES):
+            continue
+        if any(rel_path.name.endswith(suffix) for suffix in EXCLUDED_FILE_SUFFIXES):
+            continue
+
+        object_name = f"{current_commit}:{rel}"
+        size = git_blob_size(root, object_name)
+        if size is None or size > MAX_FILE_BYTES:
+            continue
+        data = git_blob_bytes(root, object_name)
+        if data is None or is_binary_sample(data):
+            continue
+        text = data.decode("utf-8", errors="replace")[:MAX_TEXT_CHARS]
+        for label, pattern in SECRET_PATTERNS:
+            for match in pattern.finditer(text):
+                line_no = line_number_for_offset(text, match.start())
+                digest = hashlib.sha256(match.group(0).encode("utf-8", errors="ignore")).hexdigest()[:12]
+                findings.append(
+                    Finding(
+                        severity="critical" if label != "generic_assignment" else "high",
+                        category="git_history_secret_exposure",
+                        file=file_label,
+                        line=line_no,
+                        title=f"Potential secret exposure in git history: {label}",
+                        evidence=f"Sensitive value suppressed by scanner. match_type={label} match_hash={digest}",
+                        recommendation="Rotate the value if real, then decide whether history rewrite is required before public release.",
+                    )
+                )
+    return findings
+
+
 def markdown_project_report(summary: ScanSummary, profile: ProjectProfile, findings: list[Finding]) -> str:
     lines: list[str] = []
     lines.append("# Local AI Security Scan Report")
@@ -965,7 +1080,7 @@ def markdown_project_report(summary: ScanSummary, profile: ProjectProfile, findi
     lines.append("## Findings")
     lines.append("")
     if not findings:
-        lines.append("No findings from this scanner. Residual risk remains: hidden binary files, git history secrets, generated bundles, and external package registry reputation were not validated.")
+        lines.append("No findings from this scanner. Residual risk remains: hidden binary files, generated bundles, and external package registry reputation may still need separate validation.")
         lines.append("")
     else:
         lines.append("| Severity | Category | File | Line | Title | Evidence | Recommendation |")
@@ -1180,7 +1295,7 @@ def default_rules_path() -> Path:
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Read-only local AI coding security portfolio scanner")
-    modes = {"scan", "quick", "deep", "pre-design", "rules-check", "export-gate"}
+    modes = {"scan", "quick", "deep", "history-scan", "pre-design", "rules-check", "export-gate"}
     if argv and argv[0] in modes:
         mode = argv[0]
         argv = argv[1:]
@@ -1190,9 +1305,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--output-dir", default=".", help="Directory for JSON and Markdown reports")
     parser.add_argument(
         "--mode",
-        choices=["scan", "quick", "deep", "pre-design", "rules-check", "export-gate"],
+        choices=["scan", "quick", "deep", "history-scan", "pre-design", "rules-check", "export-gate"],
         default=mode,
-        help="scan writes the original portfolio report; gate modes also evaluate blocking design/export rules",
+        help="scan writes the original portfolio report; history-scan also inspects git history; gate modes also evaluate blocking design/export rules",
     )
     parser.add_argument(
         "--rules",
@@ -1219,6 +1334,27 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Target is not a directory: {target}", file=sys.stderr)
             return 2
         summary, findings = scan_project(target)
+        if args.mode == "history-scan":
+            findings.extend(scan_git_history(target))
+            findings.sort(key=lambda item: (severity_rank(item.severity), item.file, item.line or 0, item.title))
+            counts = {severity: 0 for severity in ["critical", "high", "medium", "low", "info"]}
+            for finding in findings:
+                counts[finding.severity] = counts.get(finding.severity, 0) + 1
+            score = sum(counts[severity] * RISK_WEIGHTS[severity] for severity in RISK_WEIGHTS)
+            summary = ScanSummary(
+                target=summary.target,
+                generated_at=summary.generated_at,
+                files_seen=summary.files_seen,
+                files_scanned=summary.files_scanned,
+                findings_total=len(findings),
+                critical=counts["critical"],
+                high=counts["high"],
+                medium=counts["medium"],
+                low=counts["low"],
+                info=counts["info"],
+                risk_score=score,
+                risk_band=risk_band(score, counts["critical"], counts["high"]),
+            )
         reports.append(ProjectReport(summary=summary, profile=project_profile(target), findings=findings))
     json_path, md_path = write_outputs(output_dir, reports, requested)
     portfolio = build_portfolio_summary(requested, reports)

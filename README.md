@@ -60,6 +60,12 @@ Run the public export gate on a generated package or release directory:
 ai-security-rules export-gate /path/to/public-package --output-dir reports
 ```
 
+Scan current files plus local git history:
+
+```bash
+ai-security-rules history-scan /path/to/repo --output-dir reports
+```
+
 The legacy form is also supported:
 
 ```bash
@@ -105,9 +111,23 @@ If browser JavaScript can read a value, it is not a secret. Provider calls that 
 
 Public exports are default-deny. Export only reviewed allowlist paths, and keep `.env*`, credentials, private proof material, raw logs, generated scratch output, and unreviewed scripts out of public packages.
 
+## Compared With Traditional SAST
+
+`ai-security-rules` is not a replacement for SonarQube, Fortify, Checkmarx, Semgrep, CodeQL, dependency scanners, or dedicated secret scanners. It is a lightweight local gate for risks that appear before or around AI-assisted coding.
+
+| Area | ai-security-rules | Traditional SAST |
+|---|---|---|
+| Core target | AI-assisted development risk: agent files, executable rules, package hallucination, public-export gates | Application security bugs: injection, XSS, memory safety, data/control-flow issues |
+| Scan surface | `AGENTS.md`, `SKILL.md`, `.mcp.json`, `.cursor/`, `.claude/`, CI/workspace config, export manifests | Source code, framework routes, sinks/sources, build artifacts, dependency graphs |
+| Execution model | Read-only by default; no project commands, no installs, no provider API calls | Often needs build context, server-side analyzers, or deeper language-specific setup |
+| Secret handling | Skips `.env*` working-tree contents; reports secret indicators with redacted evidence and hashes | Depends on tool; dedicated secret scanners may inspect broader content and history |
+| Best role | Early design gate, agent-entry gate, export gate, local governance check | Deep code vulnerability analysis and compliance-grade source review |
+
+Use both layers. This tool catches AI workflow and repo-governance hazards that classic SAST often cannot see; classic SAST catches source-level vulnerabilities this tool intentionally does not model.
+
 ## Limitations
 
-- Does not scan git history.
+- Git history scanning is available with `history-scan`, but it is local-only and conservative. `.env*` and credential-like historical filenames are reported without reading or printing their contents.
 - Does not validate registry ownership over the network.
 - Does not replace SAST, dependency scanners, or dedicated secret scanners.
 - Uses conservative pattern matching, so findings require review.
