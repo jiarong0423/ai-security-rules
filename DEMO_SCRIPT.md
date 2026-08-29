@@ -18,7 +18,7 @@ A team wants to use an AI coding agent to work on a repository. Before opening t
 PYTHONPATH=src python3 -m ai_security_rules agent-review . --output-dir demo-reports
 ```
 
-2. Run the Strands-compatible agent workflow.
+2. Run the Strands SDK agent workflow.
 
 ```bash
 PYTHONPATH=src python3 strands_agent_demo/vibegate_strands_agent.py . --output-dir demo-reports --clean-output
@@ -69,7 +69,7 @@ Developers, open-source maintainers, DevSecOps engineers, creators, and small te
 
 1:05-2:10 Working prototype:
 
-Run the Strands-compatible wrapper and show `agentic_security_review_queue.md`.
+Run the Strands SDK wrapper and show `agentic_security_review_queue.md`.
 
 2:10-3:15 Agentic behavior:
 
@@ -90,10 +90,10 @@ This gives teams a pre-development gate before agent execution, dependency insta
 ## Video Checklist
 
 - Show the command.
-- Show the Strands-compatible wrapper.
+- Show the Strands SDK wrapper.
 - Show the generated Markdown queue.
 - Show `ARCHITECTURE.md`.
-- Show at least one P0/P1 blocking decision.
+- Explain that P0/P1 findings block automatic agent execution, export, or deploy.
 - Show that `.env` contents are never read.
 - Explain how this complements SAST, gitleaks/trufflehog, and package reputation review.
 - Name the tools used: Python, Git, JSON rules, Markdown/JSON reports, optional SAST/secret/dependency evidence tools.

@@ -1,6 +1,6 @@
 # Repo Release Checklist
 
-Status: ready for initial GitHub repository import.
+Status: ready for Devpost submission after demo video URL is added.
 
 ## Included
 
@@ -20,7 +20,9 @@ Status: ready for initial GitHub repository import.
 - Evidence freshness gate with configurable `--evidence-max-age-days`.
 - Copy-ready integration templates under `templates/`.
 - IDE extension integration contract under `integrations/`.
-- Strands-compatible agent demo under `strands_agent_demo/`.
+- Strands SDK agent demo under `strands_agent_demo/`.
+- AWS AgentCore deployment guide under `aws_agentcore/`.
+- Strands install extra via `pip install -e ".[strands]"`.
 - Optional false-positive tuning via `--tuning`, limited to low/medium/info findings.
 - Optional npm/PyPI package existence checks via `--registry-check`; disabled by default.
 - Bundled rules: `src/ai_security_rules/rules/security_design_gate_rules.json`.
@@ -58,7 +60,13 @@ Result:
 critical=0 high=0 medium=61
 ```
 
-The remaining medium findings are expected because the scanner source, tests, Strands wrapper, demo script, hackathon rule-fit document, and README describe shell commands, package runners, install hooks, synthetic secret fixtures, and permission concepts as rule text.
+Latest hackathon self-scan after the submission gap checklist update:
+
+```text
+critical=0 high=0 medium=72
+```
+
+The remaining medium findings are expected because the scanner source, tests, Strands wrapper, demo script, hackathon rule-fit document, AWS AgentCore guide, and README describe shell commands, package runners, install hooks, synthetic secret fixtures, and permission concepts as rule text.
 
 Agent review self-check:
 
@@ -73,7 +81,14 @@ Gate: mode=rules-check decision=pass blocking=0 P0=0 P1=0 P2=0
 Agent review: decision=pass items=61 P0=0 P1=0 P2=61 P3=0
 ```
 
-Strands-compatible dry-run:
+Latest hackathon agent review after the submission gap checklist update:
+
+```text
+Gate: mode=rules-check decision=pass blocking=0 P0=0 P1=0 P2=0
+Agent review: decision=pass items=72 P0=0 P1=0 P2=72 P3=0
+```
+
+Strands SDK dry-run:
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 strands_agent_demo/vibegate_strands_agent.py . --output-dir /private/tmp/vibegate-strands-demo --clean-output
@@ -111,9 +126,32 @@ Result: no matches.
 
 ## Before Public Push
 
-1. Create a new empty GitHub repository.
-2. Review `README.md` and package name.
-3. Run tests again.
-4. Run self-scan again.
-5. Commit only the files in this directory.
-6. Do not include generated report directories, `.env*`, local test output, or private project reports.
+1. Confirm `git status --short --branch` is clean.
+2. Confirm `origin/main` contains the latest commit.
+3. Confirm the public GitHub repository shows the MIT license, README, architecture image, `strands_agent_demo/`, and `aws_agentcore/`.
+4. Run tests again.
+5. Run self-scan again.
+6. Commit only the files in this directory.
+7. Do not include generated report directories, `.env*`, local test output, or private project reports.
+
+## Devpost Submission Gaps
+
+Required and already present:
+
+- Public repository URL.
+- MIT license.
+- README with setup instructions.
+- Architecture diagram file.
+- Strands SDK wrapper and optional AgentCore deployment route.
+- Local deterministic demo path without credentials.
+
+Required and external to the repository:
+
+- Demo video URL from YouTube or Vimeo.
+- AWS Builder ID entered in the Devpost form.
+- Submitter country and track selection.
+
+Optional:
+
+- Live demo link.
+- Builder blog post.

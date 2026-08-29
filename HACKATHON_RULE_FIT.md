@@ -61,7 +61,7 @@ Hackathon-judged work:
 - agent-readable remediation queue
 - safety lanes for pre-development management, open-source pollution control, hallucination/supply-chain control, and release evidence control
 - demo script and Devpost packaging
-- Strands-compatible wrapper and architecture diagram
+- Strands SDK wrapper, architecture diagram, and optional AgentCore route
 
 ## Plain-language Positioning
 
