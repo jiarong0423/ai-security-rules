@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1200" viewBox="0 0 1800 1200">
+  <defs>
+    <style>
+      .bg { fill: #f7f8fb; }
+      .title { font-family: sans-serif; font-size: 52px; font-weight: 700; fill: #111827; }
+      .subtitle { font-family: sans-serif; font-size: 26px; font-weight: 400; fill: #4b5563; }
+      .box { fill: #ffffff; stroke: #1f2937; stroke-width: 3; rx: 18; }
+      .box-soft { fill: #eef6ff; stroke: #2563eb; stroke-width: 3; rx: 18; }
+      .box-warn { fill: #fff7ed; stroke: #ea580c; stroke-width: 3; rx: 18; }
+      .box-stop { fill: #fef2f2; stroke: #dc2626; stroke-width: 3; rx: 18; }
+      .box-go { fill: #f0fdf4; stroke: #16a34a; stroke-width: 3; rx: 18; }
+      .text { font-family: sans-serif; font-size: 28px; font-weight: 700; fill: #111827; }
+      .small { font-family: sans-serif; font-size: 22px; font-weight: 400; fill: #374151; }
+      .tiny { font-family: sans-serif; font-size: 19px; font-weight: 400; fill: #4b5563; }
+      .arrow { stroke: #374151; stroke-width: 4; fill: none; marker-end: url(#arrowhead); }
+      .label { font-family: sans-serif; font-size: 20px; font-weight: 700; fill: #1f2937; }
+    </style>
+    <marker id="arrowhead" markerWidth="12" markerHeight="8" refX="10" refY="4" orient="auto">
+      <polygon points="0 0, 12 4, 0 8" fill="#374151"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1800" height="1200"/>
+  <text class="title" x="90" y="90">VibeGate Architecture</text>
+  <text class="subtitle" x="90" y="130">Strands-compatible professional agent for safe AI coding workflows</text>
+
+  <rect class="box-soft" x="90" y="220" width="360" height="150"/>
+  <text class="text" x="125" y="275">Developer / CI</text>
+  <text class="small" x="125" y="315">Requests a repo safety review</text>
+  <text class="tiny" x="125" y="345">Before agent run, export, or deploy</text>
+
+  <rect class="box-soft" x="600" y="200" width="480" height="190"/>
+  <text class="text" x="635" y="255">Strands-Compatible Agent</text>
+  <text class="small" x="635" y="300">Tool 1: run_vibegate_agent_review</text>
+  <text class="small" x="635" y="332">Tool 2: read_vibegate_queue</text>
+  <text class="small" x="635" y="364">Tool 3: recommend_agent_next_action</text>
+
+  <rect class="box" x="1230" y="220" width="420" height="150"/>
+  <text class="text" x="1265" y="275">ai-security-rules CLI</text>
+  <text class="small" x="1265" y="315">Read-only local scanner</text>
+  <text class="tiny" x="1265" y="345">No env reads, no installs, no API calls</text>
+
+  <rect class="box" x="150" y="520" width="360" height="170"/>
+  <text class="text" x="185" y="575">Repository Inputs</text>
+  <text class="small" x="185" y="615">Agent rules, MCP config</text>
+  <text class="small" x="185" y="647">Dependencies, source files</text>
+  <text class="small" x="185" y="679">Export manifests, evidence docs</text>
+
+  <rect class="box-warn" x="660" y="500" width="440" height="210"/>
+  <text class="text" x="695" y="555">Security Gate Engine</text>
+  <text class="small" x="695" y="598">Pre-design controls</text>
+  <text class="small" x="695" y="630">Open-source pollution control</text>
+  <text class="small" x="695" y="662">Package hallucination review</text>
+  <text class="small" x="695" y="694">SAST / secret-scan evidence gates</text>
+
+  <rect class="box" x="1250" y="520" width="400" height="170"/>
+  <text class="text" x="1285" y="575">Reports</text>
+  <text class="small" x="1285" y="615">Portfolio JSON / Markdown</text>
+  <text class="small" x="1285" y="647">Gate JSON / Markdown</text>
+  <text class="small" x="1285" y="679">Redacted evidence only</text>
+
+  <rect class="box-soft" x="250" y="850" width="500" height="190"/>
+  <text class="text" x="285" y="905">Agentic Remediation Queue</text>
+  <text class="small" x="285" y="948">Priority: P0 / P1 / P2 / P3</text>
+  <text class="small" x="285" y="980">Lane: pre-dev, export, supply chain</text>
+  <text class="small" x="285" y="1012">Action boundary for coding agents</text>
+
+  <rect class="box-stop" x="930" y="830" width="360" height="210"/>
+  <text class="text" x="965" y="890">P0 / P1 Decision</text>
+  <text class="small" x="965" y="935">Stop automatic agent work</text>
+  <text class="small" x="965" y="967">No export or deploy</text>
+  <text class="small" x="965" y="999">Human approval required</text>
+
+  <rect class="box-go" x="1410" y="850" width="300" height="170"/>
+  <text class="text" x="1445" y="905">P2 / P3 Only</text>
+  <text class="small" x="1445" y="950">Allow low-risk cleanup</text>
+  <text class="small" x="1445" y="982">Keep gates enabled</text>
+
+  <path class="arrow" d="M450 295 L600 295"/>
+  <path class="arrow" d="M1080 295 L1230 295"/>
+  <path class="arrow" d="M330 520 L330 390 L1230 390 L1230 520"/>
+  <path class="arrow" d="M1440 370 L1440 520"/>
+  <path class="arrow" d="M1250 605 L1100 605"/>
+  <path class="arrow" d="M660 605 L510 605"/>
+  <path class="arrow" d="M880 710 L600 850"/>
+  <path class="arrow" d="M750 945 L930 935"/>
+  <path class="arrow" d="M1290 935 L1410 935"/>
+
+  <text class="label" x="480" y="280">asks</text>
+  <text class="label" x="1120" y="280">tool call</text>
+  <text class="label" x="1125" y="585">evidence</text>
+  <text class="label" x="775" y="800">queue</text>
+  <text class="label" x="1325" y="918">if safe</text>
+</svg>

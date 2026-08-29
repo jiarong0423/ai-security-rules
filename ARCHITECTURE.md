@@ -2,6 +2,10 @@
 
 ## VibeGate Agentic Security Gate
 
+Devpost-uploadable diagram:
+
+![VibeGate Architecture](assets/vibegate_architecture_upload.png)
+
 ```mermaid
 flowchart TD
     A[Developer or CI] --> B[Strands-compatible VibeGate Agent]
@@ -48,4 +52,3 @@ The agent is not allowed to rotate credentials, delete files, publish a reposito
 ## Agents for Humans Fit
 
 VibeGate fits the Professional Agents track: it helps developers, maintainers, DevSecOps teams, and small engineering teams handle repetitive, judgment-heavy security review before AI coding agents work on a repo.
-

@@ -99,6 +99,7 @@ Repository:
 Architecture diagram:
 
 - `ARCHITECTURE.md`
+- `assets/vibegate_architecture_upload.png`
 
 Demo video:
 
