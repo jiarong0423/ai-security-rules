@@ -883,6 +883,8 @@ SECRET_OWNER_DOC_NAMES = {
     "security.md",
     "SECRETS.md",
     "secrets.md",
+    "SECURITY_SECRET_ROTATION_EVIDENCE.md",
+    "security_secret_rotation_evidence.md",
     "RUNBOOK.md",
     "runbook.md",
 }
@@ -929,6 +931,8 @@ THREAT_MODEL_DOC_NAMES = {
 }
 
 PUBLIC_EXPORT_MANIFEST_NAMES = {
+    "LOCAL_SECURITY_CLASSIFICATION_MANIFEST.md",
+    "local_security_classification_manifest.md",
     "public-export-manifest.json",
     "public-export-manifest.md",
     "public_export_manifest.json",

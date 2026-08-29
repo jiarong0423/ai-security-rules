@@ -70,6 +70,28 @@ dev = [
             rule_ids = {finding["rule_id"] for finding in gate["findings"]}
             self.assertIn("public_export_secret_material", rule_ids)
 
+    def test_local_security_files_satisfy_owner_and_public_manifest_gates(self) -> None:
+        with tempfile.TemporaryDirectory() as root_dir, tempfile.TemporaryDirectory() as report_dir:
+            root = Path(root_dir)
+            (root / "main.py").write_text("print('hello')\n", encoding="utf-8")
+            (root / "credentials").mkdir()
+            (root / "credentials" / "credentials.json").write_text('{"private_key":"placeholder"}\n', encoding="utf-8")
+            (root / "SECURITY_SECRET_ROTATION_EVIDENCE.md").write_text(
+                "Owner: project owner\nRotation path: provider console\n",
+                encoding="utf-8",
+            )
+            (root / "LOCAL_SECURITY_CLASSIFICATION_MANIFEST.md").write_text(
+                "Default decision: public-export-deny\n",
+                encoding="utf-8",
+            )
+            result = run_cli("rules-check", str(root), "--output-dir", report_dir)
+            self.assertEqual(result.returncode, 1)
+            gate = json.loads((Path(report_dir) / "local_security_design_gate_rules_check.json").read_text(encoding="utf-8"))
+            rule_ids = {finding["rule_id"] for finding in gate["findings"]}
+            self.assertIn("public_export_secret_material", rule_ids)
+            self.assertNotIn("missing_secret_owner", rule_ids)
+            self.assertNotIn("public_export_unclassified_artifact", rule_ids)
+
     def test_empty_pre_design_passes(self) -> None:
         with tempfile.TemporaryDirectory() as root_dir, tempfile.TemporaryDirectory() as report_dir:
             result = run_cli("pre-design", root_dir, "--output-dir", report_dir)
