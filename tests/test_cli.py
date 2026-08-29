@@ -92,6 +92,46 @@ dev = [
             self.assertNotIn("missing_secret_owner", rule_ids)
             self.assertNotIn("public_export_unclassified_artifact", rule_ids)
 
+    def test_ignored_owner_only_runtime_secret_is_not_active_p0_scan(self) -> None:
+        with tempfile.TemporaryDirectory() as root_dir, tempfile.TemporaryDirectory() as report_dir:
+            root = Path(root_dir)
+            subprocess.run(["git", "init"], cwd=root, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+            (root / ".gitignore").write_text("credentials/\n", encoding="utf-8")
+            (root / "credentials").mkdir()
+            secret_file = root / "credentials" / "credentials.json"
+            secret_file.write_text('{"private_key":"-----BEGIN PRIVATE KEY-----\\nredacted\\n-----END PRIVATE KEY-----"}\n', encoding="utf-8")
+            secret_file.chmod(0o600)
+            result = run_cli("scan", str(root), "--output-dir", report_dir)
+            self.assertEqual(result.returncode, 1)
+            payload = json.loads((Path(report_dir) / "local_ai_security_portfolio_report.json").read_text(encoding="utf-8"))
+            portfolio = payload["portfolio"]
+            categories = {
+                finding["category"]
+                for project in payload["projects"]
+                for finding in project["findings"]
+            }
+            self.assertEqual(portfolio["critical"], 0)
+            self.assertIn("local_runtime_secret", categories)
+
+    def test_ignored_owner_only_runtime_secret_still_blocks_public_export(self) -> None:
+        with tempfile.TemporaryDirectory() as root_dir, tempfile.TemporaryDirectory() as report_dir:
+            root = Path(root_dir)
+            subprocess.run(["git", "init"], cwd=root, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+            (root / ".gitignore").write_text("credentials/\n", encoding="utf-8")
+            (root / "credentials").mkdir()
+            secret_file = root / "credentials" / "credentials.json"
+            secret_file.write_text('{"private_key":"-----BEGIN PRIVATE KEY-----\\nredacted\\n-----END PRIVATE KEY-----"}\n', encoding="utf-8")
+            secret_file.chmod(0o600)
+            (root / "LOCAL_SECURITY_CLASSIFICATION_MANIFEST.md").write_text("Date: 2099-12-31\nDefault decision: public-export-deny\n", encoding="utf-8")
+            result = run_cli("rules-check", str(root), "--output-dir", report_dir)
+            self.assertEqual(result.returncode, 1)
+            gate = json.loads((Path(report_dir) / "local_security_design_gate_rules_check.json").read_text(encoding="utf-8"))
+            findings = gate["findings"]
+            rule_ids = {finding["rule_id"] for finding in findings}
+            public_export = [finding for finding in findings if finding["rule_id"] == "public_export_secret_material"]
+            self.assertIn("public_export_secret_material", rule_ids)
+            self.assertEqual(public_export[0]["severity"], "P0")
+
     def test_empty_pre_design_passes(self) -> None:
         with tempfile.TemporaryDirectory() as root_dir, tempfile.TemporaryDirectory() as report_dir:
             result = run_cli("pre-design", root_dir, "--output-dir", report_dir)

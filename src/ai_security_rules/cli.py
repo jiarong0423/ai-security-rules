@@ -451,6 +451,36 @@ def line_at(text: str, line_no: int) -> str:
     return ""
 
 
+def is_git_tracked(path: Path, root: Path) -> bool:
+    rel = safe_relative(path, root)
+    if not is_git_work_tree(root):
+        return False
+    result = run_git(root, ["ls-files", "--error-unmatch", "--", rel])
+    return result.returncode == 0
+
+
+def is_git_ignored(path: Path, root: Path) -> bool:
+    rel = safe_relative(path, root)
+    if not is_git_work_tree(root):
+        return False
+    result = run_git(root, ["check-ignore", "--quiet", "--", rel])
+    return result.returncode == 0
+
+
+def is_owner_only_file(path: Path) -> bool:
+    try:
+        mode = path.stat().st_mode & 0o777
+    except OSError:
+        return False
+    return (mode & 0o077) == 0
+
+
+def is_contained_local_runtime_secret(path: Path, root: Path) -> bool:
+    if not file_name_has_secret_material(path):
+        return False
+    return is_git_ignored(path, root) and not is_git_tracked(path, root) and is_owner_only_file(path)
+
+
 def is_agent_config(path: Path) -> bool:
     if path.name in AGENT_CONFIG_NAMES:
         return True
@@ -560,19 +590,29 @@ def scan_agent_config(path: Path, root: Path, text: str) -> list[Finding]:
 def scan_secrets(path: Path, root: Path, text: str) -> list[Finding]:
     findings: list[Finding] = []
     rel = safe_relative(path, root)
+    contained_local_runtime_secret = is_contained_local_runtime_secret(path, root)
     for label, pattern in SECRET_PATTERNS:
         for match in pattern.finditer(text):
             line_no = line_number_for_offset(text, match.start())
             digest = hashlib.sha256(match.group(0).encode("utf-8", errors="ignore")).hexdigest()[:12]
+            severity = "critical" if label != "generic_assignment" else "high"
+            category = "secret_exposure"
+            title = f"Potential secret exposure: {label}"
+            recommendation = "Do not commit literal secrets. Move secrets to env vars or a secret manager, rotate exposed values, and scan git history."
+            if contained_local_runtime_secret and severity == "critical":
+                severity = "high"
+                category = "local_runtime_secret"
+                title = f"Contained local runtime secret: {label}"
+                recommendation = "Keep this file ignored, owner-only, and excluded from public export. Prefer repo-external protected storage or a secret manager for stricter isolation."
             findings.append(
                 Finding(
-                    severity="critical" if label != "generic_assignment" else "high",
-                    category="secret_exposure",
+                    severity=severity,
+                    category=category,
                     file=rel,
                     line=line_no,
-                    title=f"Potential secret exposure: {label}",
+                    title=title,
                     evidence=f"Sensitive value suppressed by scanner. match_type={label} match_hash={digest}",
-                    recommendation="Do not commit literal secrets. Move secrets to env vars or a secret manager, rotate exposed values, and scan git history.",
+                    recommendation=recommendation,
                 )
             )
     return findings
