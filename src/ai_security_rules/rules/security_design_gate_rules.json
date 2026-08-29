@@ -103,6 +103,12 @@
           "severity": "P1",
           "rule": "Public deployment must have endpoint exposure review, auth/session boundary, rate/quota/budget gate, and secret scan.",
           "required_control": "Record deployment gate evidence before public exposure."
+        },
+        {
+          "id": "missing_sast_or_code_security_scan",
+          "severity": "P1",
+          "rule": "Deployable or releasable source-code projects must keep SAST or equivalent code-security scan evidence.",
+          "required_control": "Record the tool used, scope, date, result, and accepted residual risk in SECURITY_SCAN_EVIDENCE.md, SAST_EVIDENCE.md, or CODE_SECURITY_EVIDENCE.md."
         }
       ]
     }

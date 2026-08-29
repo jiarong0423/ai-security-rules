@@ -52,6 +52,29 @@ class CliTests(unittest.TestCase):
             gate = json.loads((Path(report_dir) / "local_security_design_gate_pre_design.json").read_text(encoding="utf-8"))
             self.assertEqual(gate["summary"]["decision"], "pass")
 
+    def test_deploy_gate_requires_sast_evidence_for_source_projects(self) -> None:
+        with tempfile.TemporaryDirectory() as root_dir, tempfile.TemporaryDirectory() as report_dir:
+            root = Path(root_dir)
+            (root / "main.py").write_text("print('hello')\n", encoding="utf-8")
+            result = run_cli("deploy-gate", str(root), "--output-dir", report_dir)
+            self.assertEqual(result.returncode, 1)
+            gate = json.loads((Path(report_dir) / "local_security_design_gate_deploy_gate.json").read_text(encoding="utf-8"))
+            rule_ids = {finding["rule_id"] for finding in gate["findings"]}
+            self.assertIn("missing_sast_or_code_security_scan", rule_ids)
+
+    def test_deploy_gate_accepts_sast_evidence_for_source_projects(self) -> None:
+        with tempfile.TemporaryDirectory() as root_dir, tempfile.TemporaryDirectory() as report_dir:
+            root = Path(root_dir)
+            (root / "main.py").write_text("print('hello')\n", encoding="utf-8")
+            (root / "SECURITY_SCAN_EVIDENCE.md").write_text(
+                "SAST: Semgrep pass. CodeQL passed. Result: clean.\n",
+                encoding="utf-8",
+            )
+            result = run_cli("deploy-gate", str(root), "--output-dir", report_dir)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            gate = json.loads((Path(report_dir) / "local_security_design_gate_deploy_gate.json").read_text(encoding="utf-8"))
+            self.assertEqual(gate["summary"]["decision"], "pass")
+
     def test_history_scan_redacts_secret_values(self) -> None:
         with tempfile.TemporaryDirectory() as root_dir, tempfile.TemporaryDirectory() as report_dir:
             root = Path(root_dir)

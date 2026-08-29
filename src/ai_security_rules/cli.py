@@ -513,6 +513,15 @@ SECRET_OWNER_DOC_NAMES = {
     "runbook.md",
 }
 
+SAST_EVIDENCE_DOC_NAMES = {
+    "SECURITY_SCAN_EVIDENCE.md",
+    "security_scan_evidence.md",
+    "SAST_EVIDENCE.md",
+    "sast_evidence.md",
+    "CODE_SECURITY_EVIDENCE.md",
+    "code_security_evidence.md",
+}
+
 PUBLIC_EXPORT_MANIFEST_NAMES = {
     "public-export-manifest.json",
     "public-export-manifest.md",
@@ -528,7 +537,7 @@ GOVERNANCE_DOC_NAMES = SECRET_OWNER_DOC_NAMES | PUBLIC_EXPORT_MANIFEST_NAMES | {
     "package_runner_allowlist.md",
     "dependency-allowlist.md",
     "dependency_allowlist.md",
-}
+} | SAST_EVIDENCE_DOC_NAMES
 
 
 def has_path_part(path_text: str, candidates: set[str]) -> bool:
@@ -584,14 +593,29 @@ def project_has_backend_proxy_marker(root: Path) -> bool:
 
 
 def project_has_provider_intent(root: Path) -> bool:
+    integration_markers = {
+        "process.env",
+        "os.environ",
+        "fetch(",
+        "axios.",
+        "requests.",
+        "require(",
+        "new ",
+        "client",
+        "sdk",
+    }
     for path in iter_files(root):
-        if path.name not in PACKAGE_FILES and not is_agent_config(path) and path.suffix.lower() not in {
+        rel = safe_relative(path, root)
+        if rel.startswith("tests/"):
+            continue
+        if path.name in GOVERNANCE_DOC_NAMES or path.name == "security_design_gate_rules.json":
+            continue
+        if path.name not in PACKAGE_FILES and path.suffix.lower() not in {
             ".js",
             ".jsx",
             ".ts",
             ".tsx",
             ".py",
-            ".md",
             ".json",
             ".toml",
             ".yaml",
@@ -602,8 +626,11 @@ def project_has_provider_intent(root: Path) -> bool:
         if text is None:
             continue
         lowered = text.lower()
-        if any(term in lowered for term in PROVIDER_TERMS):
+        if path.name in PACKAGE_FILES and any(term in lowered for term in PROVIDER_TERMS):
             return True
+        for source_line in lowered.splitlines():
+            if any(term in source_line for term in PROVIDER_TERMS) and any(marker in source_line for marker in integration_markers):
+                return True
     return False
 
 
@@ -628,6 +655,47 @@ def project_has_secret_owner_record(root: Path) -> bool:
             continue
         lowered = text.lower()
         if ("owner" in lowered or "負責" in lowered) and ("rotate" in lowered or "rotation" in lowered or "輪替" in lowered):
+            return True
+    return False
+
+
+def project_has_code_surface(root: Path) -> bool:
+    source_suffixes = {
+        ".c",
+        ".cc",
+        ".cpp",
+        ".cs",
+        ".go",
+        ".java",
+        ".js",
+        ".jsx",
+        ".kt",
+        ".mjs",
+        ".php",
+        ".py",
+        ".rb",
+        ".rs",
+        ".swift",
+        ".ts",
+        ".tsx",
+    }
+    for path in iter_files(root):
+        rel = safe_relative(path, root)
+        if path.suffix.lower() in source_suffixes and not rel.startswith("tests/"):
+            return True
+    return False
+
+
+def project_has_sast_evidence(root: Path) -> bool:
+    evidence_terms = {"sast", "semgrep", "codeql", "sonarqube", "sonar", "fortify", "checkmarx", "bandit", "gosec"}
+    for path in iter_files(root):
+        if path.name not in SAST_EVIDENCE_DOC_NAMES:
+            continue
+        text = read_text_file(path)
+        if text is None:
+            continue
+        lowered = text.lower()
+        if any(term in lowered for term in evidence_terms) and ("pass" in lowered or "passed" in lowered or "通過" in lowered or "clean" in lowered):
             return True
     return False
 
@@ -690,6 +758,7 @@ def evaluate_project_gates(report: ProjectReport, rules: dict[str, Any], mode: s
     enabled_stages = {
         "pre-design": {"pre_design"},
         "export-gate": {"pre_public_export"},
+        "deploy-gate": {"pre_deploy"},
         "rules-check": {str(stage.get("id")) for stage in rules.get("stages", []) if isinstance(stage, dict)},
     }.get(mode, set())
 
@@ -834,6 +903,16 @@ def evaluate_project_gates(report: ProjectReport, rules: dict[str, Any], mode: s
                     "pre_deploy",
                     "public_endpoint_without_auth_or_rate_gate",
                     "Provider/cloud/payment integration detected without backend/API/server marker for auth/rate/quota gate evidence.",
+                )
+            )
+        if project_has_code_surface(root) and not project_has_sast_evidence(root):
+            gate_findings.append(
+                make_gate_finding(
+                    rules,
+                    report,
+                    "pre_deploy",
+                    "missing_sast_or_code_security_scan",
+                    "Source-code surface detected, but no SAST/code-security evidence document was found.",
                 )
             )
 
@@ -1295,7 +1374,7 @@ def default_rules_path() -> Path:
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Read-only local AI coding security portfolio scanner")
-    modes = {"scan", "quick", "deep", "history-scan", "pre-design", "rules-check", "export-gate"}
+    modes = {"scan", "quick", "deep", "history-scan", "pre-design", "rules-check", "export-gate", "deploy-gate"}
     if argv and argv[0] in modes:
         mode = argv[0]
         argv = argv[1:]
@@ -1305,7 +1384,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--output-dir", default=".", help="Directory for JSON and Markdown reports")
     parser.add_argument(
         "--mode",
-        choices=["scan", "quick", "deep", "history-scan", "pre-design", "rules-check", "export-gate"],
+        choices=["scan", "quick", "deep", "history-scan", "pre-design", "rules-check", "export-gate", "deploy-gate"],
         default=mode,
         help="scan writes the original portfolio report; history-scan also inspects git history; gate modes also evaluate blocking design/export rules",
     )
@@ -1366,7 +1445,7 @@ def main(argv: list[str] | None = None) -> int:
         f"critical={portfolio.critical} high={portfolio.high} medium={portfolio.medium} "
         f"risk_score={portfolio.risk_score} highest_band={portfolio.highest_risk_band}"
     )
-    if args.mode in {"pre-design", "rules-check", "export-gate"}:
+    if args.mode in {"pre-design", "rules-check", "export-gate", "deploy-gate"}:
         try:
             rules = load_gate_rules(rules_path)
         except ValueError as exc:

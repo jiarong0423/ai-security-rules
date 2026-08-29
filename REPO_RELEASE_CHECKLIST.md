@@ -7,7 +7,8 @@ Status: ready for initial GitHub repository import.
 - Python package under `src/ai_security_rules/`.
 - Console command: `ai-security-rules`.
 - Module command: `python3 -m ai_security_rules`.
-- Modes: `scan`, `history-scan`, `pre-design`, `rules-check`, `export-gate`.
+- Modes: `scan`, `history-scan`, `pre-design`, `rules-check`, `export-gate`, `deploy-gate`.
+- SAST/code-security evidence gate via `SECURITY_SCAN_EVIDENCE.md`, `SAST_EVIDENCE.md`, or `CODE_SECURITY_EVIDENCE.md`.
 - Bundled rules: `src/ai_security_rules/rules/security_design_gate_rules.json`.
 - README with install, usage, reports, exit codes, safety boundaries, and limitations.
 - MIT license.
@@ -25,7 +26,7 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python3 -m unittest discover -s tests
 Result:
 
 ```text
-Ran 4 tests
+Ran 6 tests
 OK
 ```
 

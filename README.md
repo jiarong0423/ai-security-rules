@@ -54,10 +54,22 @@ Run the full rule gate before opening a repository to an agent or before release
 ai-security-rules rules-check /path/to/repo --output-dir reports
 ```
 
+For source-code projects, `rules-check` also expects SAST or equivalent code-security evidence before deployment. The scanner does not run SAST itself; it checks that evidence exists in one of:
+
+- `SECURITY_SCAN_EVIDENCE.md`
+- `SAST_EVIDENCE.md`
+- `CODE_SECURITY_EVIDENCE.md`
+
 Run the public export gate on a generated package or release directory:
 
 ```bash
 ai-security-rules export-gate /path/to/public-package --output-dir reports
+```
+
+Run the deployment evidence gate:
+
+```bash
+ai-security-rules deploy-gate /path/to/repo --output-dir reports
 ```
 
 Scan current files plus local git history:
@@ -124,6 +136,8 @@ Public exports are default-deny. Export only reviewed allowlist paths, and keep 
 | Best role | Early design gate, agent-entry gate, export gate, local governance check | Deep code vulnerability analysis and compliance-grade source review |
 
 Use both layers. This tool catches AI workflow and repo-governance hazards that classic SAST often cannot see; classic SAST catches source-level vulnerabilities this tool intentionally does not model.
+
+The SAST integration is deliberately an evidence gate, not an embedded scanner. That keeps the default behavior read-only, local, and tool-agnostic while still blocking release workflows that have no recorded code-security scan.
 
 ## Limitations
 
