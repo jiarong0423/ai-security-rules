@@ -70,6 +70,26 @@ ai-security-rules agent-review /path/to/repo --output-dir reports
 
 The queue is designed for AI-assisted teams: P0/P1 items block automatic agent execution, public export, or deployment until the required control evidence exists.
 
+## Demo Screenshots
+
+![VibeGate cover](assets/demo/01-cover.png)
+
+![GitHub repository overview](assets/demo/02-github-repo.png)
+
+![README usage](assets/demo/03-readme-usage.png)
+
+![Strands SDK demo wrapper](assets/demo/04-strands-demo.png)
+
+![AWS AgentCore route](assets/demo/05-agentcore-route.png)
+
+![Submission gap checklist](assets/demo/06-submission-gap-check.png)
+
+![Architecture](assets/demo/07-architecture.png)
+
+![Working demo](assets/demo/08-working-demo.png)
+
+![Agent queue](assets/demo/09-agent-queue.png)
+
 For source-code projects, `rules-check` also expects SAST or equivalent code-security evidence before deployment. The scanner does not run SAST itself; it checks that evidence exists in one of:
 
 - `SECURITY_SCAN_EVIDENCE.md`
