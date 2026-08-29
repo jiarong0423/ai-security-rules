@@ -29,7 +29,7 @@ Core gates:
 Primary fit:
 
 - AI agent evaluation, reliability, security, and safety tooling.
-- Agents for Humans Hackathon: fits after adding the Strands-compatible agent wrapper.
+- Agents for Humans Hackathon: fits through the Strands SDK agent wrapper and the optional AWS AgentCore deployment route.
 
 Prize-track fit:
 
@@ -61,13 +61,20 @@ The hackathon-facing feature is the `agent-review` mode. It turns scan and gate 
 
 This makes the project meaningful for agent reliability, security, and safety tooling rather than a plain static scanner.
 
-For Strands-based submissions, `strands_agent_demo/vibegate_strands_agent.py` wraps VibeGate as a tool-using agent workflow:
+For Strands-based submissions, `strands_agent_demo/vibegate_strands_agent.py` wraps VibeGate as a tool-using Strands Agent workflow:
 
 - tool 1: run the VibeGate agent review
 - tool 2: read the remediation queue
 - tool 3: recommend the next safe coding-agent action
 
-The default demo is deterministic and requires no API key. A real Strands Agent path is available with `--use-strands` when the SDK and model provider are configured.
+The default demo is deterministic and requires no API key. A real Strands Agent path is available with `--use-strands` after installing the `strands` extra and configuring the model provider.
+
+```bash
+python3 -m pip install -e ".[strands]"
+PYTHONPATH=src python3 strands_agent_demo/vibegate_strands_agent.py . --output-dir demo-reports --use-strands --clean-output
+```
+
+For AWS execution, `aws_agentcore/README.md` documents the AgentCore route. AgentCore deployment is useful technical evidence but is not required for the prototype to run.
 
 ## How AI Agents Are Used
 
@@ -121,7 +128,8 @@ Major models, frameworks, APIs, tools, and datasets:
 
 - Python 3.10+
 - Git
-- Strands Agents SDK compatibility wrapper
+- Strands Agents SDK tool wrapper
+- Optional Amazon Bedrock AgentCore deployment route
 - JSON rule engine
 - Markdown and JSON report outputs
 - Mermaid architecture diagram in Markdown
@@ -174,7 +182,7 @@ Technical execution:
 
 Agent design:
 
-- Produces an agent-readable remediation queue with explicit action boundaries and exposes a Strands-compatible tool workflow.
+- Produces an agent-readable remediation queue with explicit action boundaries and exposes a Strands SDK tool workflow.
 
 Creativity:
 

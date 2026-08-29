@@ -34,6 +34,14 @@ classifiers = [
 ]
 dependencies = []
 
+[project.optional-dependencies]
+strands = [
+  "strands-agents>=1.0.0"
+]
+hackathon = [
+  "strands-agents>=1.0.0"
+]
+
 [project.scripts]
 ai-security-rules = "ai_security_rules.cli:main"
 

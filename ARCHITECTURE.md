@@ -8,7 +8,7 @@ Devpost-uploadable diagram:
 
 ```mermaid
 flowchart TD
-    A[Developer or CI] --> B[Strands-compatible VibeGate Agent]
+    A[Developer, CI, or AgentCore Runtime] --> B[Strands SDK VibeGate Agent]
     B --> C[Tool: run_vibegate_agent_review]
     C --> D[ai-security-rules CLI]
     D --> E[Read-only repository scan]
@@ -33,12 +33,13 @@ flowchart TD
 | `ai_security_rules.cli` | Performs local scan and gate evaluation. | Does not read `.env` contents, execute target commands, install dependencies, or call provider APIs. |
 | `security_design_gate_rules.json` | Defines stage gates and blocking controls. | Rules are static local JSON. |
 | `agent-review` mode | Converts scan and gate findings into a remediation queue. | Queue contains redacted evidence and action boundaries, not secret values. |
-| `strands_agent_demo/vibegate_strands_agent.py` | Strands-compatible wrapper with three tools. | Default deterministic dry-run needs no model provider or API key. |
+| `strands_agent_demo/vibegate_strands_agent.py` | Strands SDK wrapper with three tools. | Default deterministic dry-run needs no model provider or API key; `--use-strands` runs the real Strands agent loop. |
+| `aws_agentcore/README.md` | AWS AgentCore deployment path. | Deployment requires external AWS credentials, IAM, region, and model access; credentials stay outside the repo. |
 | Reports | JSON and Markdown evidence for humans, agents, and CI. | Written only to `--output-dir`. |
 
 ## Data Flow
 
-1. A developer or CI job starts the Strands-compatible wrapper.
+1. A developer, CI job, or AgentCore runtime starts the Strands SDK wrapper.
 2. The wrapper calls the local `agent-review` tool.
 3. The scanner reads repository files except skipped sensitive patterns such as `.env*`.
 4. The gate engine evaluates pre-design, pre-dependency, pre-agent-run, public-export, and deploy evidence rules.

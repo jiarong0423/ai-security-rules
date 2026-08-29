@@ -165,6 +165,7 @@ This repository includes submission support material:
 - `DEMO_SCRIPT.md`
 - `ARCHITECTURE.md`
 - `strands_agent_demo/`
+- `aws_agentcore/`
 
 For hackathons that require substantial new work, disclose this repository as pre-existing open-source baseline and submit the agentic review workflow as the new judged functionality.
 
@@ -174,7 +175,20 @@ For Strands-based agent hackathons, run the wrapper demo:
 PYTHONPATH=src python3 strands_agent_demo/vibegate_strands_agent.py . --output-dir demo-reports --clean-output
 ```
 
-The wrapper defines Strands-compatible tools and runs a deterministic no-credential demo by default. If the Strands SDK and model provider credentials are configured, add `--use-strands`.
+The wrapper defines real Strands tool functions and runs a deterministic no-credential demo by default. To run through the Strands SDK agent loop:
+
+```bash
+python3 -m pip install -e ".[strands]"
+PYTHONPATH=src python3 strands_agent_demo/vibegate_strands_agent.py . --output-dir demo-reports --use-strands --clean-output
+```
+
+The default Strands model provider may require AWS credentials, Bedrock model access, or another configured model provider. Keep all credentials outside the repository.
+
+For the AWS AgentCore route, see:
+
+```text
+aws_agentcore/README.md
+```
 
 ## Rules
 

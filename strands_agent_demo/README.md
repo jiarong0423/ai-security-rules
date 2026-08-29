@@ -1,6 +1,6 @@
 # VibeGate Strands Agent Demo
 
-This demo wraps `ai-security-rules agent-review` as Strands-compatible tools.
+This demo wraps `ai-security-rules agent-review` as Strands SDK tools.
 
 It exists for hackathons that require a working AI agent or agent workflow. The core scanner remains read-only and local; the wrapper turns the scanner into a bounded coding-agent safety reviewer.
 
@@ -35,11 +35,23 @@ PYTHONPATH=src python3 strands_agent_demo/vibegate_strands_agent.py . --output-d
 Install the SDK in a separate environment if you want the real Strands agent loop:
 
 ```bash
-python3 -m pip install strands-agents
-PYTHONPATH=src python3 strands_agent_demo/vibegate_strands_agent.py . --output-dir demo-reports --use-strands
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install -e ".[strands]"
+PYTHONPATH=src python3 strands_agent_demo/vibegate_strands_agent.py . --output-dir demo-reports --use-strands --clean-output
 ```
 
 The default Strands model provider may require AWS credentials or another configured model provider. Do not put API keys in the repository.
+
+## Run On AWS AgentCore
+
+AgentCore deployment is documented in:
+
+```text
+aws_agentcore/README.md
+```
+
+Use AgentCore only after AWS account, IAM, region, Bedrock model access, and cost boundaries are confirmed.
 
 ## Hackathon Positioning
 
@@ -49,4 +61,3 @@ The judged feature is the agentic safety workflow:
 2. VibeGate scans the repository without side effects.
 3. VibeGate produces a queue with priorities, lanes, evidence, required actions, and agent boundaries.
 4. The agent receives a safe next action instead of blindly running tools or exporting code.
-
