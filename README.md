@@ -1,6 +1,8 @@
-# ai-security-rules
+# VibeGate
 
-Read-only local scanner and gate for AI coding security risks.
+Agentic security gates for AI-built repositories.
+
+This repository is published as `ai-security-rules`: a read-only local scanner and Strands-compatible agent workflow for AI coding security risks.
 
 The tool focuses on security surfaces that are easy to miss in agentic coding workflows:
 
